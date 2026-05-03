@@ -12,6 +12,7 @@ import { ImportacaoView } from "@/pages/views/ImportacaoView";
 import { DestinatariosView } from "@/pages/views/DestinatariosView";
 import { ExcecoesView } from "@/pages/views/ExcecoesView";
 import { LogsView } from "@/pages/views/LogsView";
+import { APP_VERSION } from "@/config/appVersion";
 
 const PAGE_SIZE = 10;
 type ViewKey = "conferencia" | "importacao" | "destinatarios" | "excecoes" | "logs";
@@ -97,6 +98,12 @@ const Index = () => {
             <NavItem label="Exceções" icon={<Ban className="h-4 w-4" />} active={activeView === "excecoes"} onClick={() => setActiveView("excecoes")} />
             <NavItem label="Logs" icon={<ClipboardList className="h-4 w-4" />} active={activeView === "logs"} onClick={() => setActiveView("logs")} />
           </nav>
+
+          {/* Rodapé discreto da sidebar com metadado estático de versão da aplicação. */}
+          <div className="mt-auto px-2 pt-6 text-xs text-muted-foreground">
+            <p>Versão {APP_VERSION.version}</p>
+            <p>Atualizado em {APP_VERSION.updatedAt}</p>
+          </div>
         </aside>
 
         <div className="min-w-0">
