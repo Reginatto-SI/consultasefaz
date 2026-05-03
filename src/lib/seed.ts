@@ -19,6 +19,8 @@ export function seedDemoData() {
     chave_nfe: chave,
     status_sefaz: status,
     data_emissao: new Date(2025, 3, dia).toISOString(),
+    emitente_inscricao_estadual: extra.ie ?? "",
+    destinatario_cnpj_cpf: extra.cnpj ?? "",
     inscricao_estadual_destinatario: extra.ie,
     payload_completo: {
       chave_nfe: chave,
