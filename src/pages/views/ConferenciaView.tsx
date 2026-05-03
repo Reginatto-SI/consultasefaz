@@ -145,20 +145,21 @@ export function ConferenciaView(props: ConferenciaViewProps) {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                <th className="text-left px-4 py-2.5 font-medium">Destinatário</th>
-                <th className="text-left px-4 py-2.5 font-medium">Chave NFe</th>
-                <th className="text-left px-4 py-2.5 font-medium">Emitente</th>
-                <th className="text-right px-4 py-2.5 font-medium">Valor</th>
-                <th className="text-left px-4 py-2.5 font-medium">Emissão</th>
-                <th className="text-left px-4 py-2.5 font-medium">SEFAZ</th>
+                <th className="text-left px-3 py-2.5 font-medium w-[110px]">Status</th>
+                <th className="text-left px-3 py-2.5 font-medium w-[120px]">Emissão / Nota</th>
+                <th className="text-left px-3 py-2.5 font-medium w-[180px]">Destinatário</th>
+                <th className="text-left px-3 py-2.5 font-medium w-[210px]">Chave de Acesso</th>
+                <th className="text-left px-3 py-2.5 font-medium w-[170px]">Natureza</th>
+                <th className="text-left px-3 py-2.5 font-medium w-[240px]">Emitente</th>
+                <th className="text-right px-3 py-2.5 font-medium w-[130px]">Valor Total</th>
+                <th className="text-left px-3 py-2.5 font-medium w-[120px]">SEFAZ</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={9} className="text-center py-12 text-muted-foreground">
                     <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p className="font-medium">Sem dados para exibir</p>
                     <p className="text-xs mt-1">Importe arquivos SEFAZ e ERP para iniciar a conferência.</p>
@@ -167,17 +168,39 @@ export function ConferenciaView(props: ConferenciaViewProps) {
               )}
               {pageData.map((l) => (
                 <tr key={l.empresa_id + l.chave_nfe} className="border-t border-border hover:bg-muted/40 cursor-pointer" onClick={() => setSelected(l)}>
-                  <td className="px-4 py-2.5"><StatusBadge status={l.status_final} /></td>
-                  <td className="px-4 py-2.5 font-medium">{l.empresa_nome}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{l.chave_nfe.slice(0, 8)}…{l.chave_nfe.slice(-6)}</td>
-                  <td className="px-4 py-2.5">{l.payload_resumo_tabela.emitente ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">
-                    {typeof l.payload_resumo_tabela.valor === "number"
-                      ? l.payload_resumo_tabela.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                      : "—"}
+                  <td className="px-3 py-2.5"><StatusBadge status={l.status_final} /></td>
+                  <td className="px-3 py-2.5 align-top">
+                    <p>{formatDataEmissao(l)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">NF {getNumeroNota(l) ?? "—"}</p>
                   </td>
-                  <td className="px-4 py-2.5">{new Date(l.data_emissao).toLocaleDateString("pt-BR")}</td>
-                  <td className="px-4 py-2.5 text-xs capitalize text-muted-foreground">{l.status_sefaz}</td>
+                  <td className="px-3 py-2.5 align-top" title={getDestinatarioTitle(l)}>
+                    <p className="font-medium break-words">{getDestinatarioNome(l)}</p>
+                    {getDestinatarioDocumento(l) && <p className="text-xs text-muted-foreground mt-1">{getDestinatarioDocumento(l)}</p>}
+                  </td>
+                  <td className="px-3 py-2.5 align-top" title={l.chave_nfe}>
+                    {/* Quebramos a chave em duas linhas para manter os 44 dígitos visíveis sem forçar rolagem horizontal na visão operacional. */}
+                    <div className="font-mono text-xs leading-tight break-all">
+                      <p>{l.chave_nfe.slice(0, 22)}</p>
+                      <p>{l.chave_nfe.slice(22)}</p>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    {/* Campos com corte visual precisam de hover para preservar a conferência completa do usuário na cobrança. */}
+                    <p
+                      className="leading-tight overflow-hidden"
+                      style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+                      title={getNatureza(l) ?? "—"}
+                    >
+                      {getNatureza(l) ?? "—"}
+                    </p>
+                  </td>
+                  <td className="px-3 py-2.5 align-top" title={getEmitenteTitle(l)}>
+                    {/* O emitente não é truncado com reticências porque a razão social completa é dado crítico de validação manual. */}
+                    <p className="break-words">{getEmitenteNome(l) ?? "—"}</p>
+                    {getEmitenteDocumento(l) && <p className="text-xs text-muted-foreground mt-1">{getEmitenteDocumento(l)}</p>}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{formatValorTotal(l)}</td>
+                  <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">{l.status_sefaz ?? "—"}</td>
                   <td className="px-4 py-2.5 text-right">
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelected(l); }}>
                       <Ellipsis className="h-4 w-4" />
@@ -219,6 +242,79 @@ function SummaryCard({ label, value, icon, tone }: { label: string; value: numbe
       </div>
     </Card>
   );
+}
+
+function getNumeroNota(linha: DatasetLinha) {
+  return linha.payload_completo_drawer?.numero_nota_fiscal
+    ?? linha.payload_resumo_tabela?.numero
+    ?? linha.payload_resumo_tabela?.numero_nota_fiscal;
+}
+
+function formatDataEmissao(linha: DatasetLinha) {
+  const rawDate = linha.data_emissao;
+  if (!rawDate) return "—";
+  const parsed = new Date(rawDate);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("pt-BR");
+}
+
+function getDestinatarioNome(linha: DatasetLinha) {
+  return linha.payload_completo_drawer?.destinatario_apelido
+    ?? linha.payload_completo_drawer?.destinatario_nome
+    ?? linha.empresa_nome
+    ?? linha.payload_completo_drawer?.destinatario_razao_social
+    ?? "—";
+}
+
+function getDestinatarioDocumento(linha: DatasetLinha) {
+  return linha.payload_completo_drawer?.destinatario_cnpj_cpf;
+}
+
+function getDestinatarioTitle(linha: DatasetLinha) {
+  const nome = getDestinatarioNome(linha);
+  const documento = getDestinatarioDocumento(linha);
+  return documento ? `${nome} • ${documento}` : nome;
+}
+
+function getNatureza(linha: DatasetLinha) {
+  return linha.payload_completo_drawer?.natureza
+    ?? linha.payload_completo_drawer?.natureza_operacao
+    ?? linha.payload_completo_drawer?.operacao
+    ?? null;
+}
+
+function getEmitenteNome(linha: DatasetLinha) {
+  return linha.payload_resumo_tabela?.emitente
+    ?? linha.payload_completo_drawer?.emitente_razao_social
+    ?? null;
+}
+
+function getEmitenteDocumento(linha: DatasetLinha) {
+  return linha.payload_completo_drawer?.emitente_cnpj_cpf ?? null;
+}
+
+function getEmitenteTitle(linha: DatasetLinha) {
+  const nome = getEmitenteNome(linha) ?? "—";
+  const documento = getEmitenteDocumento(linha);
+  return documento ? `${nome} • ${documento}` : nome;
+}
+
+function formatValorTotal(linha: DatasetLinha) {
+  const valor = linha.payload_resumo_tabela?.valor ?? linha.payload_completo_drawer?.valor_total_nota_fiscal;
+  if (typeof valor === "number") {
+    return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+  // O importador pode preservar valor textual vindo da planilha; formatamos somente quando a string representa número válido.
+  if (typeof valor === "string" && valor.trim()) {
+    // A planilha pode trazer "R$ 170.015,23" ou variações com espaços/símbolos; saneamos apenas para leitura numérica.
+    const somenteNumerico = valor.replace(/[^\d,.\-]/g, "");
+    const normalizado = somenteNumerico.replace(/\./g, "").replace(",", ".");
+    const parsed = Number(normalizado);
+    if (!Number.isNaN(parsed)) {
+      return parsed.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+  }
+  return "—";
 }
 
 
