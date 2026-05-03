@@ -12,6 +12,8 @@ import { DestinatariosView } from "@/pages/views/DestinatariosView";
 import { ExcecoesView } from "@/pages/views/ExcecoesView";
 import { LogsView } from "@/pages/views/LogsView";
 import { APP_VERSION } from "@/config/appVersion";
+import { exportarExcelConferencia } from "@/lib/exporters/excelExporter";
+import { exportarPdfConferencia } from "@/lib/exporters/pdfExporter";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -222,10 +224,43 @@ const Index = () => {
                   <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                     <Upload className="h-4 w-4 mr-2" /> Importar Arquivos
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!hasAnalysisData}
+                    onClick={() => {
+                      if (filtered.length === 0) {
+                        toast({ title: "Não há dados de conferência para exportar." });
+                        return;
+                      }
+                      try {
+                        exportarExcelConferencia(filtered, stats, { empresaId, status, dataIni, dataFim, chave, empresas });
+                        toast({ title: "Relatório Excel gerado." });
+                      } catch (e) {
+                        console.error(e);
+                        toast({ variant: "destructive", title: "Não foi possível gerar o relatório. Verifique os dados e tente novamente." });
+                      }
+                    }}
+                  >
                     <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel
                   </Button>
-                  <Button size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>
+                  <Button
+                    size="sm"
+                    disabled={!hasAnalysisData}
+                    onClick={() => {
+                      if (filtered.length === 0) {
+                        toast({ title: "Não há dados de conferência para exportar." });
+                        return;
+                      }
+                      try {
+                        exportarPdfConferencia(filtered, stats, { empresaId, status, dataIni, dataFim, chave, empresas });
+                        toast({ title: "Relatório PDF gerado." });
+                      } catch (e) {
+                        console.error(e);
+                        toast({ variant: "destructive", title: "Não foi possível gerar o relatório. Verifique os dados e tente novamente." });
+                      }
+                    }}
+                  >
                     <FileDown className="h-4 w-4 mr-2" /> Gerar PDF
                   </Button>
                 </div>
