@@ -46,6 +46,22 @@ export function normalizeStatus(s: string): StatusSefaz {
   return "desconhecido";
 }
 
+
+function getNaturezaOperacao(payload: Record<string, any> | undefined): string | null {
+  if (!payload) return null;
+
+  const valor = payload["NATUREZA DE OPERAÇÃO"]
+    ?? payload["NATUREZA OPERACAO"]
+    ?? payload.natureza_operacao
+    ?? payload.naturezaDeOperacao
+    ?? payload.natureza
+    ?? payload.operacao;
+
+  if (valor === null || valor === undefined) return null;
+  const texto = String(valor).trim();
+  return texto || null;
+}
+
 export interface MotorInput {
   notas: NotaSefaz[];
   erp: RegistroErp[];
@@ -149,6 +165,8 @@ export function rodarMotor(input: MotorInput): DatasetLinha[] {
         emitente: n.emitente_razao_social ?? n.payload_completo?.emitente_razao_social,
         valor: n.payload_completo?.valor_total_nota_fiscal,
         numero: n.payload_completo?.numero_nota_fiscal,
+        // A natureza da operação vem preservada do payload SEFAZ e é exposta no resumo para a tabela evitar leitura direta do payload bruto.
+        natureza_operacao: getNaturezaOperacao(n.payload_completo),
       },
       payload_completo_drawer: n.payload_completo,
       referencia_execucao,

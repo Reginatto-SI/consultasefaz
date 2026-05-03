@@ -277,7 +277,8 @@ function getDestinatarioTitle(linha: DatasetLinha) {
 }
 
 function getNatureza(linha: DatasetLinha) {
-  return linha.payload_completo_drawer?.natureza
+  return linha.payload_resumo_tabela?.natureza_operacao
+    ?? linha.payload_completo_drawer?.natureza
     ?? linha.payload_completo_drawer?.natureza_operacao
     ?? linha.payload_completo_drawer?.operacao
     ?? null;
