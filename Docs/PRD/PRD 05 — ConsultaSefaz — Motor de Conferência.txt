@@ -25,6 +25,13 @@ Regra obrigatória: o motor não deve interpretar layout bruto de planilha; deve
 
 **Matching segue regra oficial definida no PRD 07.**
 
+
+### 5.0 Regra de normalização do status SEFAZ (V1)
+- `status_sefaz_valido` representa nota autorizada/regular no relatório SEFAZ.
+- `status_sefaz_invalido` representa nota cancelada, denegada, inutilizada, inexistente ou equivalente no relatório SEFAZ.
+- A V1 deve tratar os textos reais do relatório SEFAZ de forma normalizada antes da classificação.
+- Se aparecer status SEFAZ desconhecido, registrar aviso operacional e tratar como inválido por segurança, salvo regra futura explícita em contrário.
+
 ### 5.1 Regra de matching antes da classificação
 Para cada nota SEFAZ:
 1) Verificar exceção ativa.
@@ -56,6 +63,7 @@ Regras de preenchimento:
 
 Observações obrigatórias:
 - Status `IGNORADA` permanece interno e não deve aparecer na tabela principal da UI.
+- `IGNORADA` pode ser usada internamente para auditoria técnica curta ou contagem operacional interna, mas não compõe os cards principais da V1.
 - Status `IRREGULAR` cobre também escrituração encontrada com IE do emitente divergente.
 - Não criar novo status final `DIVERGENTE` na V1.
 - Não usar IE do destinatário para matching com RFT006.

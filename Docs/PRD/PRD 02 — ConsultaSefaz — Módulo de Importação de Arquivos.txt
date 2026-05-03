@@ -31,8 +31,10 @@ RFT006/ERP: chave_acesso e inscricao_estadual_emitente (obrigatórios para linha
 
 Regra obrigatória para IE do emitente no RFT006:
 - Se o arquivo não possuir coluna mapeável para `inscricao_estadual_emitente`, tratar como erro bloqueante do arquivo (PRD 09).
-- Se a coluna existir, mas uma linha com `chave_acesso` estiver sem `inscricao_estadual_emitente`, não bloquear o arquivo inteiro; marcar a linha como inelegível para matching e registrar aviso operacional.
-- Linha sem `chave_acesso` não participa do matching; pode ser descartada ou mantida apenas no payload/registro de importação conforme regra operacional, com aviso quando a inconsistência for relevante.
+- Se a coluna existir, mas uma linha com `chave_acesso` estiver sem `inscricao_estadual_emitente`, não bloquear o arquivo inteiro; marcar a linha como inelegível para matching.
+- Linha sem `chave_acesso` não participa do matching.
+- Linhas inelegíveis (sem `chave_acesso` ou com `chave_acesso` sem `inscricao_estadual_emitente`) devem ser preservadas no payload/registro de importação quando tecnicamente viável.
+- Linhas inelegíveis devem gerar aviso operacional quando representarem inconsistência relevante.
 
 ## 6. Normalização obrigatória
 - chave_nfe sem máscara e sem espaços.
@@ -40,8 +42,9 @@ Regra obrigatória para IE do emitente no RFT006:
 - textos com trim e padronização de caixa.
 
 ## 7. Snapshot
-- SEFAZ: substitui dados anteriores dos destinatários impactados.
-- ERP: substitui base ERP vigente.
+- SEFAZ: identificar os destinatários presentes no próprio arquivo importado por `destinatario_cnpj_cpf` e substituir apenas as notas desses destinatários impactados.
+- Destinatários não presentes no arquivo importado não devem ter seus dados SEFAZ apagados.
+- ERP: substitui globalmente a base ERP/RFT006 vigente.
 - Exceções não são apagadas pelo snapshot (PRD 04).
 
 ## 8. Erros e avisos
