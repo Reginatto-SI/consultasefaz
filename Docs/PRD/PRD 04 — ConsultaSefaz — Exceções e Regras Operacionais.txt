@@ -15,13 +15,14 @@ Exceção ativa sempre vence qualquer classificação automática.
 - DESCONSIDERAÇÃO de nota
 
 ## 5. Campos mínimos
-- empresa_id (identificador técnico do destinatário na V1; não representa tenant)
+- id (identificador local)
+- empresa_id (identificador técnico local do destinatário na V1; não representa tenant)
 - chave_nfe
 - motivo
-- observacao (opcional)
-- usuario (opcional V1)
-- data_registro
+- observacao
 - ativa (true/false)
+- criada_em
+- atualizada_em
 
 ## 6. Ordem obrigatória de decisão
 1) Verificar exceção ativa
@@ -29,9 +30,11 @@ Exceção ativa sempre vence qualquer classificação automática.
 3) Verificar matching com ERP
 
 ## 7. Comportamentos obrigatórios
-- Exceção é permanente até reversão manual.
-- Exceção continua existindo após novos snapshots.
-- Reversão reativa fluxo normal de conferência.
+- Exceção ativa prevalece sobre classificação automática.
+- Exceção inativa não altera o resultado da conferência.
+- Exceção é permanente localmente até reversão/inativação manual.
+- Exceção continua existindo após novos snapshots locais, enquanto os dados do navegador forem preservados.
+- Reversão/inativação reativa fluxo normal de conferência.
 - Não permitir duplicidade de exceção ativa para mesmo destinatário + chave.
 
 ## 8. Exceção órfã
@@ -57,3 +60,12 @@ Se a exceção existir mas a nota não estiver no snapshot SEFAZ atual:
 - Não há garantia de persistência corporativa.
 - Se o usuário limpar dados locais, exceções podem ser apagadas.
 - Não há workflow, usuário autenticado ou auditoria por usuário na V1.
+
+
+## 12. Persistência local, backup e limitações (V1)
+- Exceções são persistidas no armazenamento local do navegador.
+- Exportação/importação de exceções é o mecanismo oficial de backup manual.
+- Se o navegador for limpo, as exceções podem ser perdidas.
+- Não há persistência em servidor.
+- Não há usuário autenticado na V1.
+- Não há auditoria corporativa por usuário na V1.

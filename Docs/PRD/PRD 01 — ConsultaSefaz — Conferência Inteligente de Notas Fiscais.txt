@@ -19,7 +19,7 @@ Este documento é a fonte de verdade para regras globais de negócio, escopo V1 
 ## 3. Princípios obrigatórios (V1)
 - SEFAZ é a fonte única de verdade.
 - ERP apenas confirma escrituração.
-- Sistema multiempresa desde o início.
+- Sistema multidestinatário desde o início.
 - Destinatário da nota é definido pelo CNPJ destinatário da SEFAZ.
 - ERP não define destinatário.
 - Exceções sobrescrevem qualquer regra automática.
@@ -27,8 +27,8 @@ Este documento é a fonte de verdade para regras globais de negócio, escopo V1 
 - Modelo snapshot sem histórico completo de execuções.
 
 ## 4. Escopo V1
-Inclui: importação SEFAZ/ERP, conferência automática, exceções, UI de consulta, logs operacionais.
-Não inclui: integração API SEFAZ, automação agendada, auditoria avançada, RBAC avançado.
+Inclui: importação SEFAZ/ERP, conferência automática, exceções locais, UI de consulta, logs operacionais.
+Não inclui: integração API SEFAZ, automação agendada, auditoria avançada, RBAC avançado, cadastro corporativo permanente de destinatários.
 
 ## 5. Status funcionais
 - OK
@@ -51,7 +51,7 @@ Observação: status IGNORADA pode existir internamente no motor (PRD 05), sem e
 - Matching não é validação fiscal.
 - O sistema não garante correspondência perfeita de IE em todos os registros ERP; aplica regra oficial do PRD 07.
 
-## 7. Multiempresa
+## 7. Multidestinatário
 - Todas as notas SEFAZ devem estar vinculadas a empresa_id (identificador técnico do destinatário na V1).
 - Exceções sempre vinculadas a empresa_id (identificador técnico do destinatário na V1) + chave.
 - Visualização por destinatário e consolidada.
@@ -79,3 +79,17 @@ Observação: status IGNORADA pode existir internamente no motor (PRD 05), sem e
 - Sem persistência corporativa em servidor.
 - Exportação é o mecanismo principal para guardar o resultado da conferência.
 - Histórico completo permanece fora de escopo na V1.
+
+
+## 11. Destinatários e exceções no escopo local da V1
+- Destinatários são derivados automaticamente dos arquivos SEFAZ importados (sem cadastro manual corporativo).
+- Exceções são regras locais por destinatário + chave, mantidas no navegador.
+- Exportação/importação de exceções deve existir como mecanismo de backup manual e reutilização em outro ambiente local.
+- Não há persistência corporativa permanente em servidor na V1.
+
+
+## 12. Enriquecimento por destinatário conhecido local (V1)
+- SEFAZ continua definindo o destinatário da nota pelo `destinatario_cnpj_cpf`.
+- Cadastro local conhecido apenas melhora exibição operacional (ex.: apelido na UI).
+- Apelido não altera matching com ERP/RFT006.
+- Apelido não altera regra de classificação do motor.

@@ -9,7 +9,7 @@ Este documento é a fonte de verdade do processamento, da ordem das regras e da 
 ## 3. Entradas
 - notas_sefaz (com empresa_id e campos estruturais já resolvidos na importação)
 - registros_erp (sem empresa)
-- excecoes_ativas (empresa_id + chave_nfe)
+- excecoes_ativas do estado local do navegador (empresa_id + chave_nfe)
 
 Contrato detalhado: PRD 07.
 Contrato de layout de origem SEFAZ: PRD 08.
@@ -34,7 +34,7 @@ Regra obrigatória: o motor não deve interpretar layout bruto de planilha; deve
 
 ### 5.1 Regra de matching antes da classificação
 Para cada nota SEFAZ:
-1) Verificar exceção ativa.
+1) Verificar exceção ativa no estado local para a chave_nfe e destinatário local (empresa_id), quando aplicável.
 2) Verificar status SEFAZ.
 3) Buscar no RFT006/ERP por `chave_acesso = chave_nfe`.
 4) Se encontrar a chave, validar se existe algum registro com `inscricao_estadual_emitente = emitente_inscricao_estadual`.
@@ -94,3 +94,9 @@ Contrato de saída: PRD 07.
 - O motor consome arrays/estado local estruturado pela importação.
 - O resultado é recalculado localmente a cada disparo de execução.
 - O determinismo permanece obrigatório.
+
+
+## 11. Regra operacional de exceções locais (V1)
+- Antes da classificação automática, o motor deve consultar as exceções ativas do estado local.
+- Se existir exceção ativa para a chave NF-e (e destinatário local, quando aplicável), o status final obrigatório é `DESCONSIDERADA`.
+- Na ausência de exceção ativa, o fluxo segue a matriz oficial de classificação do item 5.3.
