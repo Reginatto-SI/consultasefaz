@@ -9,7 +9,6 @@ import {
   formatStatusSefazVisual,
   formatDataEmissao,
   formatarFiltrosAplicados,
-  getDestinatarioDocumento,
   getDestinatarioNome,
   getEmitenteNome,
   getNatureza,
@@ -47,15 +46,15 @@ export function exportarPdfConferencia(
   const resumo = `OK: ${stats.ok}    FALTANTE: ${stats.faltantes}    IRREGULAR: ${stats.irregulares}    DESCONSIDERADA: ${stats.desconsideradas}`;
   doc.text(resumo, 40, 118);
 
-  // A tabela do PDF replica a mesma estrutura exibida na tabela principal da conferência,
-  // removendo apenas a coluna interativa de ações.
+  // Nova ordem das colunas no PDF: Emitente passa para a 3ª posição e Destinatário vai para a 6ª.
+  // Mantemos o espelhamento da tabela principal com os ajustes visuais específicos solicitados para exportação.
   const head = [[
     "Status",
     "Emissão / Nota",
-    "Destinatário",
+    "Emitente",
     "Chave de Acesso",
     "Natureza",
-    "Emitente",
+    "Destinatário",
     "Valor Total",
     "SEFAZ",
   ]];
@@ -66,10 +65,11 @@ export function exportarPdfConferencia(
     return [
       l.status_final ?? "—",
       `${formatDataEmissao(l) || "—"}\nNF ${getNumeroNota(l) || "—"}`,
-      `${getDestinatarioNome(l)}${getDestinatarioDocumento(l) ? `\n${getDestinatarioDocumento(l)}` : ""}`,
+      getEmitenteNome(l),
       `${l.chave_nfe.slice(0, 22)}\n${l.chave_nfe.slice(22)}`,
       getNatureza(l) || "—",
-      getEmitenteNome(l),
+      // No PDF, Destinatário exibe apenas o apelido/nome principal (sem documento/CNPJ/CPF).
+      getDestinatarioNome(l),
       typeof valorTotal === "number"
         ? valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
         : "—",
@@ -83,17 +83,19 @@ export function exportarPdfConferencia(
     body,
     startY: 130,
     margin: { left: 40, right: 40, bottom: 60 },
-    styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak", valign: "middle" },
+    // Padronização visual: todo o conteúdo da tabela deve ficar alinhado à esquerda.
+    styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak", valign: "middle", halign: "left" },
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 7.5 },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     columnStyles: {
-      0: { cellWidth: 58 },
-      1: { cellWidth: 86 },
-      2: { cellWidth: 120 },
-      3: { cellWidth: 160, font: "courier", fontSize: 6.5 },
-      4: { cellWidth: 84 },
-      5: { cellWidth: 128 },
-      6: { cellWidth: 75, halign: "right" },
+      // Refino visual: reduzimos Destinatário/Chave para ampliar Natureza sem alterar ordem ou conteúdo.
+      0: { cellWidth: 50 },
+      1: { cellWidth: 82 },
+      2: { cellWidth: 125 },
+      3: { cellWidth: 135, font: "courier", fontSize: 6.5 },
+      4: { cellWidth: 140 },
+      5: { cellWidth: 85 },
+      6: { cellWidth: 75 },
       7: { cellWidth: 64 },
     },
     didDrawPage: () => {
