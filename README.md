@@ -14,7 +14,7 @@ A SEFAZ é a fonte de verdade. O ERP somente confirma escrituração.
 2. Normalizar e validar dados mínimos.
 3. Aplicar snapshot de entrada local (memória e/ou armazenamento local do navegador).
 4. Executar motor de conferência determinístico.
-5. Aplicar exceções manuais com prioridade máxima.
+5. Aplicar exceções manuais locais com prioridade máxima.
 6. Exibir resultados por destinatário e consolidado.
 7. Exibir logs operacionais locais para correção rápida e exportar resultado final.
 
@@ -110,3 +110,21 @@ Observações operacionais da V1:
 - Estado pode existir em memória e/ou armazenamento local do navegador.
 - A manutenção dos dados depende da estratégia local e não possui garantia corporativa de retenção.
 - Exportação é o meio oficial para conservar o resultado da conferência.
+
+
+## Regras específicas da V1 sem banco
+- Destinatários são identificados automaticamente nas importações SEFAZ pelos campos `destinatario_cnpj_cpf` e `destinatario_razao_social`.
+- A tela de destinatários é informativa (consulta/listagem local), sem CRUD corporativo completo na V1.
+- Exceções são salvas localmente no navegador e aplicadas pelo motor de conferência.
+- Exceções devem poder ser exportadas/importadas para backup manual entre ambientes locais.
+- Se os dados do navegador forem limpos, as exceções locais podem ser perdidas.
+- Banco de dados, backend e autenticação ficam para evolução futura (V2+), se necessários.
+
+
+## Enriquecimento local de destinatários na V1
+- A V1 segue sem banco de dados, sem backend e sem autenticação.
+- Destinatários podem ser enriquecidos por cadastro local fixo de destinatários conhecidos (configuração operacional local em código).
+- O apelido é usado para facilitar leitura na UI quando houver correspondência por CNPJ/CPF.
+- CNPJ/CPF continua sendo a chave de identificação do destinatário da nota.
+- A razão social original da SEFAZ permanece rastreável no payload/detalhe.
+- O cadastro local conhecido não altera matching, classificação ou precedência de exceções.

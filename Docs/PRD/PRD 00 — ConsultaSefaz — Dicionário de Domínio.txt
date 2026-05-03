@@ -98,3 +98,23 @@ Regra obrigatória: qualquer novo PRD deve respeitar este dicionário.
 - `empresa_id` continua como identificador técnico local do destinatário fiscal, gerado no navegador.
 - `empresa_id` não representa tenant, organização, usuário nem registro persistente em banco.
 - “Multidestinatário” na V1 significa processar múltiplos CNPJs destinatários dentro dos arquivos importados, com estado em memória e/ou armazenamento local do navegador.
+
+
+## 11. Destinatários automáticos e exceções locais (V1)
+- Destinatário fiscal na V1 é identificado automaticamente na importação SEFAZ pelos campos `destinatario_cnpj_cpf` e `destinatario_razao_social`.
+- Destinatário não é tenant e não depende de cadastro manual em banco de dados.
+- A tela de destinatários da V1 é de consulta/listagem local dos destinatários encontrados na importação.
+- Exceção local é uma regra salva no navegador para desconsiderar uma chave específica de NF-e, com precedência sobre o motor automático.
+
+
+## 12. Destinatário conhecido local (V1)
+Definição:
+- Destinatário conhecido local é um registro fixo no código da V1 para destinatários recorrentes.
+- Pode conter dados operacionais como: apelido, razão social, CPF/CNPJ, IE, perfil e tributação.
+
+Regras obrigatórias:
+- Não é banco de dados.
+- Não é cadastro corporativo.
+- Não é mock de demonstração.
+- Não define pertencimento fiscal da nota.
+- Apenas enriquece a exibição quando o CPF/CNPJ da SEFAZ coincide com a base local.

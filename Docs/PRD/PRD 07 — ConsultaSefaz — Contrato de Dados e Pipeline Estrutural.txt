@@ -49,7 +49,7 @@ Em caso de conflito, prevalece esta ordem: PRD 00 > PRD 01 > PRD 07 > PRD espec�
 - ERP não define destinatário; ERP apenas confirma existência de nota da SEFAZ.
 
 
-- Sistema multiempresa desde o início.
+- Sistema multidestinatário desde o início.
 - SEFAZ é fonte única de verdade.
 - Destinatário da nota é definido somente pelo SEFAZ (CNPJ destinatário).
 - ERP nunca define destinatário.
@@ -63,10 +63,14 @@ Em caso de conflito, prevalece esta ordem: PRD 00 > PRD 01 > PRD 07 > PRD espec�
 
 ### 4.1 Destinatário SEFAZ
 
-- id (obrigatório)
+- id (obrigatório; identificador local)
 - nome (obrigatório)
 - cnpj (obrigatório, normalizado)
 - inscricao_estadual (opcional)
+- destinatario_cnpj_cpf_normalizado (opcional; usado para vínculo com cadastro local conhecido)
+- destinatario_conhecido (opcional; boolean)
+- destinatario_apelido (opcional; vindo do cadastro local conhecido quando houver correspondência por CPF/CNPJ)
+- origem = derivado automaticamente da importação SEFAZ por `destinatario_cnpj_cpf` e `destinatario_razao_social`
 
 ---
 
@@ -108,15 +112,17 @@ Observação V1: linha RFT006 com `chave_acesso` sem `inscricao_estadual_emitent
 
 ### 4.4 Exceção
 
-- id (obrigatório)
-- empresa_id (obrigatório)
+- id (obrigatório; identificador local)
+- empresa_id (obrigatório; destinatário local)
 - chave_nfe (obrigatório)
 - tipo_excecao = DESCONSIDERACAO (obrigatório)
 - motivo (obrigatório)
-- observacao (opcional)
-- usuario (opcional na V1)
-- data_registro (obrigatório)
+- observacao (obrigatório, podendo ser string vazia)
 - ativa (obrigatório; true/false)
+- criada_em (obrigatório)
+- atualizada_em (obrigatório)
+
+Persistência V1: objeto local no navegador (sem tabela de banco, sem migration e sem persistência corporativa).
 
 Chave única lógica: empresa_id + chave_nfe + tipo_excecao + ativa.
 
@@ -245,7 +251,7 @@ Restrições explícitas da V1:
 - O PRD 09 define o layout oficial do relatório RFT006/ERP e os campos estruturais de confirmação de escrituração.
 
 
-## 11. Esclarecimentos mandatórios de arquitetura da V1
+## 13. Esclarecimentos mandatórios de arquitetura da V1
 - As entidades deste PRD são contratos de dados para memória e/ou armazenamento local do navegador; não são tabelas de banco na V1.
 - `id`, `empresa_id`, `importacao_id` e `referencia_execucao` são identificadores locais gerados no navegador.
 - É proibido criar migrations e tabelas na V1.
@@ -254,3 +260,21 @@ Restrições explícitas da V1:
 - O payload completo das importações permanece no estado local.
 - A V1 não possui histórico completo nem persistência corporativa em servidor.
 - Em evolução futura (V2+), estes contratos podem ser convertidos em modelo persistente, fora do escopo da V1.
+
+
+## 14. Persistência local obrigatória da V1
+- Destinatários são contratos locais derivados da importação SEFAZ.
+- Exceções são objetos locais persistidos no navegador.
+- Não há tabela de banco de dados na V1.
+- Não há migration na V1.
+- Não há persistência corporativa em servidor na V1.
+- Identificadores `id` de destinatário e exceção são locais ao ambiente do navegador/importação.
+
+
+## 15. Regras de enriquecimento local do destinatário (V1)
+- `destinatario_cnpj_cpf` da nota sempre vem da SEFAZ.
+- `destinatario_apelido` vem do cadastro local conhecido quando houver correspondência por CPF/CNPJ normalizado.
+- `destinatario_razao_social` original da SEFAZ deve permanecer preservada no contrato e no payload/detalhe.
+- O vínculo com cadastro local deve ser somente por CPF/CNPJ normalizado.
+- Não usar razão social para vínculo com cadastro local.
+- O cadastro local conhecido não substitui a SEFAZ como fonte de verdade da nota.

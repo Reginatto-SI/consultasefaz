@@ -41,6 +41,10 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 - Busca por chave NFe
 
 ## 6. Regras de exibição
+- Quando houver destinatário conhecido local, exibir apelido como nome principal na listagem.
+- Quando não houver destinatário conhecido local, exibir razão social da SEFAZ como nome principal.
+- Filtros por destinatário devem priorizar apelido quando disponível.
+- Drawer/detalhe deve preservar e permitir visualizar a razão social original da SEFAZ.
 - UI não depende de IE para calcular ou inferir status.
 - Status exibido vem exclusivamente do resultado do motor de conferência (PRD 05).
 - Mostrar visão por destinatário e consolidado multidestinatário.
@@ -54,6 +58,8 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 - Ver detalhes
 - Desconsiderar nota
 - Reverter desconsideração
+- Exportar exceções locais
+- Importar exceções locais
 
 ## 8. Estados da tela
 - Sem dados
@@ -80,3 +86,19 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 - Ações de exportação têm prioridade de destaque na V1.
 - Se houver persistência local, oferecer ação simples para limpar dados locais.
 - Não criar telas de banco de dados, conta, login, usuário ou histórico remoto na V1.
+
+
+## 12. Tela de Destinatários (V1)
+- Tela predominantemente informativa (sem CRUD completo).
+- Listar destinatários encontrados nas importações locais.
+- Exibir por linha: CNPJ/CPF, razão social, quantidade de notas e data/hora da última importação local (quando disponível).
+- Não exigir cadastro manual de destinatário na V1.
+
+## 13. Tela de Exceções (V1)
+- Permitir adicionar exceção por chave NF-e.
+- Permitir informar motivo e observação.
+- Permitir ativar/inativar exceção.
+- Permitir excluir exceção localmente.
+- Permitir exportar exceções para arquivo local.
+- Permitir importar exceções de arquivo local.
+- Exibir aviso obrigatório: `As exceções são salvas apenas neste navegador. Exporte um backup para reutilizar em outro computador.`
