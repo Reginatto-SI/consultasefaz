@@ -6,10 +6,15 @@ import {
   FiltrosConferencia,
   dataHojeISO,
   dataHoraGeracao,
+  formatStatusSefazVisual,
   formatDataEmissao,
   formatarFiltrosAplicados,
+  getDestinatarioDocumento,
   getDestinatarioNome,
   getEmitenteNome,
+  getNatureza,
+  getNumeroNota,
+  getValorTotal,
 } from "./helpers";
 
 export function exportarPdfConferencia(
@@ -42,26 +47,36 @@ export function exportarPdfConferencia(
   const resumo = `OK: ${stats.ok}    FALTANTE: ${stats.faltantes}    IRREGULAR: ${stats.irregulares}    DESCONSIDERADA: ${stats.desconsideradas}`;
   doc.text(resumo, 40, 118);
 
+  // A tabela do PDF replica a mesma estrutura exibida na tabela principal da conferência,
+  // removendo apenas a coluna interativa de ações.
   const head = [[
-    "Data Emissão",
+    "Status",
+    "Emissão / Nota",
     "Destinatário",
-    "Chave NF-e",
+    "Chave de Acesso",
+    "Natureza",
     "Emitente",
-    "IE SEFAZ",
-    "IE ERP/RFT006",
-    "Resultado Matching",
-    "Status Final",
+    "Valor Total",
+    "SEFAZ",
   ]];
-  const body = linhas.map((l) => [
-    formatDataEmissao(l),
-    getDestinatarioNome(l),
-    l.chave_nfe,
-    getEmitenteNome(l),
-    l.ie_emitente_sefaz ?? "",
-    l.ie_emitente_rft006_encontrada ?? "",
-    l.resultado_matching ?? "",
-    l.status_final ?? "",
-  ]);
+  const body = linhas.map((l) => {
+    // Evita chamada duplicada de getValorTotal mantendo o mesmo resultado visual no PDF.
+    const valorTotal = getValorTotal(l);
+
+    return [
+      l.status_final ?? "—",
+      `${formatDataEmissao(l) || "—"}\nNF ${getNumeroNota(l) || "—"}`,
+      `${getDestinatarioNome(l)}${getDestinatarioDocumento(l) ? `\n${getDestinatarioDocumento(l)}` : ""}`,
+      `${l.chave_nfe.slice(0, 22)}\n${l.chave_nfe.slice(22)}`,
+      getNatureza(l) || "—",
+      getEmitenteNome(l),
+      typeof valorTotal === "number"
+        ? valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+        : "—",
+      // Mantém a mesma apresentação amigável da tela para status SEFAZ (equivalente ao uso de "capitalize").
+      formatStatusSefazVisual(l.status_sefaz),
+    ];
+  });
 
   autoTable(doc, {
     head,
@@ -72,31 +87,26 @@ export function exportarPdfConferencia(
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 7.5 },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     columnStyles: {
-      0: { cellWidth: 60 },
-      1: { cellWidth: 130 },
-      2: { cellWidth: 150, font: "courier", fontSize: 6.5 },
-      3: { cellWidth: 150 },
-      4: { cellWidth: 60 },
-      5: { cellWidth: 60 },
-      6: { cellWidth: 95 },
-      7: { cellWidth: 65 },
+      0: { cellWidth: 58 },
+      1: { cellWidth: 86 },
+      2: { cellWidth: 120 },
+      3: { cellWidth: 160, font: "courier", fontSize: 6.5 },
+      4: { cellWidth: 84 },
+      5: { cellWidth: 128 },
+      6: { cellWidth: 75, halign: "right" },
+      7: { cellWidth: 64 },
     },
     didDrawPage: () => {
       const totalPagesExp = "{total_pages_count_string}";
       const pageNum = doc.getCurrentPageInfo().pageNumber;
+      // Rodapé institucional único: evita a duplicação anterior e mantém paginação à direita.
       doc.setFontSize(7.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(90);
-      const yLine1 = pageHeight - 36;
-      const yLine2 = pageHeight - 24;
-      doc.text("Por Edimar Reginato — JM Assessoria e Contabilidade MT", 40, yLine1);
-      doc.text(
-        "Gerado por Reginatto SI — www.reginattosistemas.com.br — Contato: (65) 99210-2030",
-        40,
-        yLine2,
-      );
+      const yLine = pageHeight - 24;
+      doc.text("JM Assessoria e Contabilidade MT — www.jmassessoriamt.com.br", 40, yLine);
       const pageStr = `Página ${pageNum} de ${totalPagesExp}`;
-      doc.text(pageStr, pageWidth - 40, yLine2, { align: "right" });
+      doc.text(pageStr, pageWidth - 40, yLine, { align: "right" });
       doc.setTextColor(0);
     },
   });

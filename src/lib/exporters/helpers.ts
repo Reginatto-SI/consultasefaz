@@ -44,6 +44,34 @@ export function getEmitenteDoc(l: DatasetLinha): string {
   return l.payload_completo_drawer?.emitente_cnpj_cpf ?? "";
 }
 
+export function getDestinatarioDocumento(l: DatasetLinha): string {
+  return l.payload_completo_drawer?.destinatario_cnpj_cpf ?? "";
+}
+
+export function getNatureza(l: DatasetLinha): string {
+  return l.payload_resumo_tabela?.natureza_operacao
+    ?? l.payload_completo_drawer?.["NATUREZA DE OPERAÇÃO"]
+    ?? l.payload_completo_drawer?.["NATUREZA OPERACAO"]
+    ?? l.payload_completo_drawer?.natureza
+    ?? l.payload_completo_drawer?.natureza_da_operacao
+    ?? l.payload_completo_drawer?.natureza_operacao
+    ?? l.payload_completo_drawer?.naturezaDeOperacao
+    ?? l.payload_completo_drawer?.cfo_descricao
+    ?? l.payload_completo_drawer?.movimentacao
+    ?? l.payload_completo_drawer?.operacao
+    ?? "";
+}
+
+export function formatStatusSefazVisual(status: string | null | undefined): string {
+  const texto = (status ?? "").trim();
+  if (!texto) return "—";
+
+  // Mesma normalização visual da tabela da tela (classe CSS "capitalize"): primeira letra de cada palavra em maiúsculo.
+  return texto
+    .toLowerCase()
+    .replace(/(^|\s)\S/g, (char) => char.toUpperCase());
+}
+
 export function getValorTotal(l: DatasetLinha): number | string {
   const v = l.payload_resumo_tabela?.valor ?? l.payload_completo_drawer?.valor_total_nota_fiscal;
   if (typeof v === "number") return v;
