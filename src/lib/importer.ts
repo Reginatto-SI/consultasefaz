@@ -210,8 +210,8 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     });
   }
 
-  if (semChave > 0) result.warnings.push(`${semChave} linha(s) RFT006 sem chave_acesso (inelegíveis para matching).`);
-  if (semIE > 0) result.warnings.push(`${semIE} linha(s) RFT006 com chave_acesso sem inscricao_estadual_emitente (inelegíveis para matching).`);
+  if (semChave > 0) result.warnings.push(`${semChave} linha(s) RFT006 sem chave de acesso. Elas foram ignoradas no matching.`);
+  if (semIE > 0) result.warnings.push(`${semIE} linha(s) RFT006 com chave de acesso, mas sem IE do emitente. Elas foram ignoradas no matching.`);
 
   const elegiveis = regs!.filter((r) => !!r.chave_acesso && !!r.inscricao_estadual_emitente);
   if (!regs!.length || !elegiveis.length) {

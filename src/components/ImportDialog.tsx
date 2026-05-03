@@ -113,13 +113,33 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           <DialogDescription>Suporte para .xlsx e .xls. Múltiplos arquivos por lote.</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tipo} onValueChange={(v) => setTipo(v as TipoImportacao)}>
+        <Tabs value={tipo} onValueChange={(v) => {
+          setTipo(v as TipoImportacao);
+          // Evita misturar arquivo/resultado entre tipos de relatório no mesmo modal.
+          reset();
+        }}>
           <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="SEFAZ">SEFAZ</TabsTrigger>
-            <TabsTrigger value="ERP">ERP</TabsTrigger>
+            <TabsTrigger value="ERP">RFT006 / ERP</TabsTrigger>
           </TabsList>
 
           <TabsContent value={tipo} className="space-y-4 mt-4">
+            <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+              <p className="text-sm font-semibold">
+                {tipo === "SEFAZ" ? "Relatório base SEFAZ" : "Relatório complementar RFT006 / Maxicon"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {tipo === "SEFAZ"
+                  ? "Use aqui o relatório de notas destinadas extraído da SEFAZ."
+                  : "Use aqui o relatório RFT006 - Relatório de Notas Fiscais exportado do Maxicon/ERP."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {tipo === "SEFAZ"
+                  ? "A = Data emissão, D = Chave NF-e, I = Situação, L = IE do emitente, O = CNPJ/CPF do destinatário"
+                  : "Z = IE do emitente, AC = Chave de acesso"}
+              </p>
+            </div>
+
             <div>
               <Label htmlFor="files">Arquivos</Label>
               <Input
