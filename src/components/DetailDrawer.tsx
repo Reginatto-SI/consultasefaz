@@ -103,6 +103,14 @@ export function DetailDrawer({
                 <dd className="font-medium">{linha.ie_emitente_confere ? "Sim" : "Não"}</dd>
               </div>
               <div>
+                <dt className="text-muted-foreground text-xs">IE SEFAZ</dt>
+                <dd className="font-medium">{linha.ie_emitente_sefaz ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">IE RFT006 encontrada</dt>
+                <dd className="font-medium">{linha.ie_emitente_rft006_encontrada ?? "—"}</dd>
+              </div>
+              <div>
                 <dt className="text-muted-foreground text-xs">Motivo divergência</dt>
                 <dd className="font-medium">{linha.motivo_divergencia ?? "—"}</dd>
               </div>
@@ -111,6 +119,16 @@ export function DetailDrawer({
                 <dd className="font-medium">{new Date(linha.data_emissao).toLocaleDateString("pt-BR")}</dd>
               </div>
             </dl>
+            {linha.motivo_divergencia === "IE_EMITENTE_AUSENTE_RFT006" && (
+              <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground">
+                A chave foi encontrada no RFT006, mas a IE do emitente não está preenchida no relatório complementar. Verifique a escrituração no ERP.
+              </p>
+            )}
+            {linha.motivo_divergencia === "IE_EMITENTE_DIVERGENTE" && (
+              <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground">
+                A chave foi encontrada no RFT006, mas a IE do emitente informada no ERP diverge da IE do emitente no relatório SEFAZ. Verifique a escrituração no ERP.
+              </p>
+            )}
           </section>
 
           <section>

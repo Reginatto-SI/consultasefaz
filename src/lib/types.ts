@@ -14,6 +14,11 @@ export type ResultadoMatching =
   | "IE_EMITENTE_DIVERGENTE"
   | "CHAVE_NAO_ENCONTRADA";
 
+export type MotivoDivergencia =
+  | "IE_EMITENTE_DIVERGENTE"
+  | "IE_EMITENTE_AUSENTE_RFT006"
+  | "CHAVE_NAO_ENCONTRADA";
+
 export interface Empresa {
   id: string;
   nome: string;
@@ -85,7 +90,9 @@ export interface DatasetLinha {
   ie_emitente_confere: boolean;
   encontrada_no_erp: boolean;
   resultado_matching: ResultadoMatching;
-  motivo_divergencia: "IE_EMITENTE_DIVERGENTE" | "CHAVE_NAO_ENCONTRADA" | null;
+  motivo_divergencia: MotivoDivergencia | null;
+  ie_emitente_sefaz?: string;
+  ie_emitente_rft006_encontrada?: string;
   tem_excecao_ativa: boolean;
   motivo_excecao?: string;
   data_emissao: string;

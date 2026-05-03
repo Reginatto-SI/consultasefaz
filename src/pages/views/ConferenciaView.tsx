@@ -168,7 +168,12 @@ export function ConferenciaView(props: ConferenciaViewProps) {
               )}
               {pageData.map((l) => (
                 <tr key={l.empresa_id + l.chave_nfe} className="border-t border-border hover:bg-muted/40 cursor-pointer" onClick={() => setSelected(l)}>
-                  <td className="px-3 py-2.5"><StatusBadge status={l.status_final} /></td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-col gap-1">
+                      <StatusBadge status={l.status_final} />
+                      {renderMotivoIE(l)}
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5 align-top">
                     <p>{formatDataEmissao(l)}</p>
                     <p className="text-xs text-muted-foreground mt-1">NF {getNumeroNota(l) ?? "—"}</p>
@@ -256,6 +261,19 @@ function formatDataEmissao(linha: DatasetLinha) {
   const parsed = new Date(rawDate);
   if (Number.isNaN(parsed.getTime())) return "—";
   return parsed.toLocaleDateString("pt-BR");
+}
+
+function renderMotivoIE(linha: DatasetLinha) {
+  const motivoIE = linha.resultado_matching === "IE_EMITENTE_DIVERGENTE"
+    || linha.motivo_divergencia === "IE_EMITENTE_AUSENTE_RFT006";
+
+  if (!motivoIE) return null;
+
+  return (
+    <span className="inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      Verificar IE
+    </span>
+  );
 }
 
 function getDestinatarioNome(linha: DatasetLinha) {
