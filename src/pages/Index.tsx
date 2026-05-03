@@ -5,22 +5,34 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { LogsDrawer } from "@/components/LogsDrawer";
 import { useToast } from "@/hooks/use-toast";
-import { Ban, Building2, ClipboardList, FileDown, FileSpreadsheet, ShieldCheck, Upload } from "lucide-react";
+import { Ban, Building2, ClipboardList, FileDown, FileSpreadsheet, ShieldCheck, Trash2, Upload } from "lucide-react";
 import type { DatasetLinha, StatusFinal } from "@/lib/types";
 import { ConferenciaView } from "@/pages/views/ConferenciaView";
 import { DestinatariosView } from "@/pages/views/DestinatariosView";
 import { ExcecoesView } from "@/pages/views/ExcecoesView";
 import { LogsView } from "@/pages/views/LogsView";
 import { APP_VERSION } from "@/config/appVersion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const PAGE_SIZE = 10;
 type ViewKey = "conferencia" | "destinatarios" | "excecoes" | "logs";
 
 const Index = () => {
-  const { dataset, empresas, excecoes, logs } = useStore();
+  const { dataset, notas, erp, empresas, excecoes, logs, clearAnalysisData } = useStore();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   // activeView é navegação temporária por estado local; ainda não representa roteamento real.
   const [activeView, setActiveView] = useState<ViewKey>("conferencia");
   const [selected, setSelected] = useState<DatasetLinha | null>(null);
@@ -71,6 +83,10 @@ const Index = () => {
   }, [empresaId, status, chave, dataIni, dataFim]);
 
   const errCount = logs.filter((l) => l.nivel === "erro").length;
+  const hasAnalysisData = useMemo(() => {
+    return dataset.length > 0 || notas.length > 0 || erp.length > 0 || logs.length > 0;
+  }, [dataset.length, notas.length, erp.length, logs.length]);
+
   const warnCount = logs.filter((l) => l.nivel === "aviso").length;
 
   const clearFilters = () => {
@@ -79,6 +95,17 @@ const Index = () => {
     setChave("");
     setDataIni("");
     setDataFim("");
+  };
+
+  const handleClearAnalysis = () => {
+    clearAnalysisData();
+    clearFilters();
+    setPage(1);
+    setSelected(null);
+    setImportOpen(false);
+    setLogsOpen(false);
+    setConfirmClearOpen(false);
+    toast({ title: "Análise limpa com sucesso. As exceções foram mantidas." });
   };
 
   return (
@@ -119,6 +146,30 @@ const Index = () => {
               </div>
               {activeView === "conferencia" && (
                 <div className="flex items-center gap-2">
+                  <AlertDialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!hasAnalysisData}
+                        className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:border-border disabled:text-muted-foreground"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Limpar análise
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Limpar análise atual?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja limpar a análise atual? Os relatórios importados, resultados da conferência e filtros serão removidos. As exceções cadastradas serão mantidas.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleClearAnalysis}>Sim, limpar análise</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   {/* Reaproveita o mesmo estado do wizard para abrir a importação direto no header da Conferência. */}
                   <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                     <Upload className="h-4 w-4 mr-2" /> Importar Arquivos
