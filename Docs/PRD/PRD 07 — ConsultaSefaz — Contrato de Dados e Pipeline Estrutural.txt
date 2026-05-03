@@ -21,6 +21,8 @@ Este PRD é a fonte de verdade para:
 - Dicionário de domínio e nomenclatura: **PRD 00**
 - Regras de negócio globais: **PRD 01**
 - Importação e parsing de arquivos: **PRD 02**
+- Layout oficial de entrada SEFAZ: **PRD 08**
+- Layout oficial de entrada RFT006/ERP: **PRD 09**
 - Interface e experiência do usuário: **PRD 03**
 - Exceções operacionais e precedência: **PRD 04**
 - Algoritmo de conferência: **PRD 05**
@@ -75,20 +77,32 @@ Em caso de conflito, prevalece esta ordem: PRD 00 > PRD 01 > PRD 07 > PRD espec�
 - chave_nfe (obrigatório, normalizada)
 - status_sefaz (obrigatório)
 - data_emissao (obrigatório para filtro por período)
-- inscricao_estadual_destinatario (opcional)
-- payload_completo (obrigatório)
+- emitente_inscricao_estadual (obrigatório para matching com RFT006)
+- emitente_cnpj_cpf (obrigatório)
+- emitente_razao_social (obrigatório)
+- destinatario_cnpj_cpf (obrigatório; define o destinatário fiscal da nota)
+- destinatario_razao_social (obrigatório)
+- inscricao_estadual_destinatario (opcional; informativo para V1)
+- payload_completo (obrigatório; deve preservar todos os campos do relatório original SEFAZ)
 - importacao_id (obrigatório, rastreio de execução)
 
 ---
 
-### 4.3 Registro ERP (entrada complementar)
+### 4.3 Registro ERP / RFT006 (entrada complementar)
 
 - id (obrigatório)
-- chave_nfe (obrigatório, normalizada)
-- inscricao_estadual (opcional)
+- chave_acesso (obrigatório, normalizada)
+- inscricao_estadual_emitente (obrigatório para linha elegível de matching)
+- emitente_cnpj_cpf (opcional)
+- emitente_razao_social (opcional)
+- numero_nota_fiscal (opcional)
+- data_emissao_erp (opcional)
+- cfop (opcional)
+- valor_total (opcional)
+- payload_completo_erp (obrigatório)
 - importacao_id (obrigatório)
 
-Observação V1: IE no ERP pode faltar; matching sem IE é permitido apenas se definido no PRD 05 como fallback controlado.
+Observação V1: linha RFT006 com `chave_acesso` sem `inscricao_estadual_emitente` não confirma matching por chave+IE e deve gerar aviso/erro conforme PRD 09.
 
 ---
 
@@ -114,7 +128,11 @@ Chave única lógica: empresa_id + chave_nfe + tipo_excecao + ativa.
 - chave_nfe
 - status_final (OK | FALTANTE | IRREGULAR | DESCONSIDERADA)
 - status_sefaz
+- chave_existe_no_erp (true/false)
+- ie_emitente_confere (true/false)
 - encontrada_no_erp (true/false)
+- resultado_matching (CONFIRMADO | IE_EMITENTE_DIVERGENTE | CHAVE_NAO_ENCONTRADA)
+- motivo_divergencia (opcional: IE_EMITENTE_DIVERGENTE | CHAVE_NAO_ENCONTRADA | null quando CONFIRMADO)
 - tem_excecao_ativa (true/false)
 - motivo_excecao (se aplicável)
 - data_emissao
@@ -129,7 +147,7 @@ Observação: status IGNORADA pode existir internamente no motor, mas não é ex
 ## 5. Pipeline oficial (V1)
 
 1. Upload de arquivos (PRD 02)
-2. Leitura, detecção de cabeçalho e colunas (PRD 02)
+2. Leitura, detecção de cabeçalho e colunas (PRD 02, PRD 08 e PRD 09)
 3. Normalização de campos críticos (PRD 02 e PRD 05)
 4. Snapshot das entradas (SEFAZ por destinatários impactados; ERP global) (PRD 01/02)
 5. Aplicação do motor determinístico (PRD 05)
@@ -185,18 +203,43 @@ Observação: status IGNORADA pode existir internamente no motor, mas não é ex
 
 Regra única e obrigatória para o motor de conferência:
 
-1. Se o registro ERP tiver `inscricao_estadual` preenchida, o matching deve usar:
-   - `chave_nfe` + `inscricao_estadual`
-2. Se o registro ERP não tiver `inscricao_estadual` preenchida, o matching deve usar apenas:
-   - `chave_nfe`
-3. Se existirem múltiplos registros ERP para a mesma `chave_nfe`:
-   - considerar somente confirmação de existência (`encontrada_no_erp = true`)
-   - não gerar múltiplos matches para a mesma nota SEFAZ
-4. Nunca exigir correspondência 1:1 entre linhas SEFAZ e ERP.
-5. ERP nunca cria registros novos; ERP apenas confirma existência de nota da SEFAZ.
+1. Para cada nota SEFAZ, buscar `chave_acesso = chave_nfe` no RFT006.
+2. Se a chave existir, validar se há registro com `inscricao_estadual_emitente = emitente_inscricao_estadual`.
+3. Definir indicadores de matching:
+   - Se chave + IE conferem:
+     - `chave_existe_no_erp = true`
+     - `ie_emitente_confere = true`
+     - `encontrada_no_erp = true`
+     - `resultado_matching = CONFIRMADO`
+     - `motivo_divergencia = null`
+   - Se chave existe e IE diverge:
+     - `chave_existe_no_erp = true`
+     - `ie_emitente_confere = false`
+     - `encontrada_no_erp = false`
+     - `resultado_matching = IE_EMITENTE_DIVERGENTE`
+     - `motivo_divergencia = IE_EMITENTE_DIVERGENTE`
+   - Se chave não existe:
+     - `chave_existe_no_erp = false`
+     - `ie_emitente_confere = false`
+     - `encontrada_no_erp = false`
+     - `resultado_matching = CHAVE_NAO_ENCONTRADA`
+     - `motivo_divergencia = CHAVE_NAO_ENCONTRADA`
+4. Nunca usar IE do destinatário para matching com RFT006.
+5. Nunca exigir correspondência 1:1 entre linhas SEFAZ e ERP.
+6. ERP nunca cria registros novos; ERP apenas confirma existência de nota da SEFAZ.
 
 Restrições explícitas da V1:
 - não usar heurística;
 - não usar similaridade;
 - não validar por nome, razão social, CNPJ de emitente/destinatário.
 
+
+
+## 11. Integração explícita com o PRD 08 e PRD 09
+
+- O PRD 08 define o contrato oficial de layout de entrada do relatório SEFAZ na V1.
+- O campo técnico `empresa_id` permanece legado, mas representa o destinatário fiscal obtido do bloco `DADOS DESTINATÁRIO` do layout SEFAZ.
+- No layout base da V1, `destinatario_cnpj_cpf` deve ser resolvido pela coluna `O` (`DADOS DESTINATÁRIO` + `CNPJ/CPF`), nunca pelo bloco de emitente.
+- `payload_completo` deve manter integralmente os dados de entrada do relatório SEFAZ para rastreabilidade operacional.
+
+- O PRD 09 define o layout oficial do relatório RFT006/ERP e os campos estruturais de confirmação de escrituração.

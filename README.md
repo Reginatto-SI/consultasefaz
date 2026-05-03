@@ -31,6 +31,8 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 - **PRD 05** — Motor de conferência determinístico.
 - **PRD 06** — Logs de erros e avisos operacionais.
 - **PRD 07** — Contrato de dados e pipeline estrutural.
+- **PRD 08** — Layout do relatório SEFAZ (mapeamento e identificação de colunas).
+- **PRD 09** — Layout do relatório RFT006 ERP (base complementar de confirmação no ERP).
 
 
 ## ⚠️ Convenção Crítica de Domínio (LEITURA OBRIGATÓRIA)
@@ -44,11 +46,12 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 2. PRD 01
 3. PRD 07
 4. PRD 02
-5. PRD 05
-6. PRD 04
-7. PRD 03
-8. PRD 06
-
+5. PRD 08
+6. PRD 09
+7. PRD 05
+8. PRD 04
+9. PRD 03
+10. PRD 06
 ## Ordem sugerida de desenvolvimento
 1. Contratos de dados e pipeline (PRD 07)
 2. Importação (PRD 02)

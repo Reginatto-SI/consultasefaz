@@ -7,11 +7,14 @@ Definir o algoritmo determinístico de conferência entre base SEFAZ, base ERP e
 Este documento é a fonte de verdade do processamento, da ordem das regras e da geração do resultado final.
 
 ## 3. Entradas
-- notas_sefaz (com empresa_id)
+- notas_sefaz (com empresa_id e campos estruturais já resolvidos na importação)
 - registros_erp (sem empresa)
 - excecoes_ativas (empresa_id + chave_nfe)
 
 Contrato detalhado: PRD 07.
+Contrato de layout de origem SEFAZ: PRD 08.
+
+Regra obrigatória: o motor não deve interpretar layout bruto de planilha; deve consumir somente campos estruturais entregues pela importação (PRD 02/08).
 
 ## 4. Pré-processamento obrigatório
 - Normalizar chave/IE.
@@ -22,20 +25,40 @@ Contrato detalhado: PRD 07.
 
 **Matching segue regra oficial definida no PRD 07.**
 
-Regra operacional aplicada no motor:
-- ERP com IE preenchida: comparar `chave_nfe + inscricao_estadual`.
-- ERP sem IE: comparar apenas `chave_nfe`.
-- Múltiplos registros ERP para a mesma chave: tratar somente como confirmação de existência.
-
+### 5.1 Regra de matching antes da classificação
 Para cada nota SEFAZ:
+1) Verificar exceção ativa.
+2) Verificar status SEFAZ.
+3) Buscar no RFT006/ERP por `chave_acesso = chave_nfe`.
+4) Se encontrar a chave, validar se existe algum registro com `inscricao_estadual_emitente = emitente_inscricao_estadual`.
 
-1) Se há exceção ativa → DESCONSIDERADA.
-2) Se status SEFAZ inválido:
-   - existe no ERP → IRREGULAR
-   - não existe no ERP → IGNORADA (não exibida na UI)
-3) Se status SEFAZ válido:
-   - existe no ERP → OK
-   - não existe no ERP → FALTANTE
+### 5.2 Resultado de matching (indicador oficial)
+Usar o campo `resultado_matching` com os seguintes valores:
+- `CONFIRMADO`
+- `IE_EMITENTE_DIVERGENTE`
+- `CHAVE_NAO_ENCONTRADA`
+
+Regras de preenchimento:
+- `CONFIRMADO`: chave encontrada e IE do emitente correspondente.
+- `IE_EMITENTE_DIVERGENTE`: chave encontrada, sem correspondência da IE do emitente.
+- `CHAVE_NAO_ENCONTRADA`: chave ausente no RFT006.
+
+### 5.3 Matriz oficial de classificação final (V1)
+| Condição | status_final |
+|---|---|
+| Exceção ativa | DESCONSIDERADA |
+| Status SEFAZ inválido e resultado_matching = CONFIRMADO | IRREGULAR |
+| Status SEFAZ inválido e resultado_matching = IE_EMITENTE_DIVERGENTE | IRREGULAR |
+| Status SEFAZ inválido e resultado_matching = CHAVE_NAO_ENCONTRADA | IGNORADA |
+| Status SEFAZ válido e resultado_matching = CONFIRMADO | OK |
+| Status SEFAZ válido e resultado_matching = IE_EMITENTE_DIVERGENTE | IRREGULAR |
+| Status SEFAZ válido e resultado_matching = CHAVE_NAO_ENCONTRADA | FALTANTE |
+
+Observações obrigatórias:
+- Status `IGNORADA` permanece interno e não deve aparecer na tabela principal da UI.
+- Status `IRREGULAR` cobre também escrituração encontrada com IE do emitente divergente.
+- Não criar novo status final `DIVERGENTE` na V1.
+- Não usar IE do destinatário para matching com RFT006.
 
 ## 6. Determinismo
 - Mesma entrada produz mesma saída.

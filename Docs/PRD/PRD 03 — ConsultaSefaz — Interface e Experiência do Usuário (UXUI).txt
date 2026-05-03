@@ -47,6 +47,8 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 - Status DESCONSIDERADA deve ficar explícito.
 - Status IGNORADA não entra na tabela principal.
 - Linha deve abrir drawer com payload completo da SEFAZ.
+- Quando exibido no detalhe da nota, separar explicitamente blocos de **Emitente** e **Destinatário** para evitar ambiguidade operacional.
+- Quando disponível no dataset final, o drawer deve exibir indicadores de matching com RFT006: `chave_existe_no_erp`, `ie_emitente_confere`, `resultado_matching` e `motivo_divergencia`.
 
 ## 7. Ações de usuário
 - Ver detalhes
@@ -69,3 +71,4 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 - PRD 05: resultado exibido.
 - PRD 06: mensagens de erro/aviso.
 - PRD 07: contrato do dataset exibido.
+- PRD 08: origem semântica dos campos de Emitente e Destinatário no layout SEFAZ.
