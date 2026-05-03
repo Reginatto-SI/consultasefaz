@@ -86,7 +86,7 @@ export const useStore = create<State>()(
           nivel: "aviso",
           arquivo_nome: arquivo,
           codigo_evento: "SEFAZ_OK",
-          mensagem_usuario: `${novas.length} notas SEFAZ importadas (${empresasImpactadas.size} empresa(s)).`,
+          mensagem_usuario: `${novas.length} notas SEFAZ importadas (${empresasImpactadas.size} destinatário(s)).`,
         });
         get().rerun();
       },
@@ -94,14 +94,15 @@ export const useStore = create<State>()(
       ingestErp: (rows, importacao_id, arquivo) => {
         const novos: RegistroErp[] = rows.map((r) => ({ ...r, id: uid(), importacao_id }));
         set({ erp: novos });
-        const semIE = novos.filter((r) => !r.inscricao_estadual).length;
+        // PRD 09: linha com chave sem IE é inelegível e deve gerar aviso resumido.
+        const semIE = novos.filter((r) => !!r.chave_acesso && !r.inscricao_estadual_emitente).length;
         if (semIE > 0) {
           get().addLog({
             tipo: "importacao",
             nivel: "aviso",
             arquivo_nome: arquivo,
             codigo_evento: "ERP_SEM_IE",
-            mensagem_usuario: `${semIE} registro(s) ERP sem Inscrição Estadual. Matching usará apenas chave NFe.`,
+            mensagem_usuario: `${semIE} registro(s) RFT006 com chave sem IE do emitente (inelegíveis para matching).`,
           });
         }
         get().rerun();

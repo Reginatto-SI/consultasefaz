@@ -4,9 +4,15 @@ export type StatusSefaz =
   | "cancelada"
   | "rejeitada"
   | "denegada"
-  | "inutilizada";
+  | "inutilizada"
+  | "desconhecido";
 
 export type StatusFinal = "OK" | "FALTANTE" | "IRREGULAR" | "DESCONSIDERADA";
+
+export type ResultadoMatching =
+  | "CONFIRMADO"
+  | "IE_EMITENTE_DIVERGENTE"
+  | "CHAVE_NAO_ENCONTRADA";
 
 export interface Empresa {
   id: string;
@@ -21,6 +27,11 @@ export interface NotaSefaz {
   chave_nfe: string;
   status_sefaz: StatusSefaz;
   data_emissao: string; // ISO
+  emitente_inscricao_estadual: string;
+  emitente_cnpj_cpf?: string;
+  emitente_razao_social?: string;
+  destinatario_cnpj_cpf: string;
+  destinatario_razao_social?: string;
   inscricao_estadual_destinatario?: string;
   payload_completo: Record<string, any>;
   importacao_id: string;
@@ -28,10 +39,13 @@ export interface NotaSefaz {
 
 export interface RegistroErp {
   id: string;
-  chave_nfe: string;
-  inscricao_estadual?: string;
+  chave_acesso: string;
+  inscricao_estadual_emitente?: string;
+  payload_completo_erp: Record<string, any>;
   importacao_id: string;
-  payload?: Record<string, any>;
+  // Compatibilidade da V1: mantemos campos legados opcionais sem uso no motor.
+  chave_nfe?: string;
+  inscricao_estadual?: string;
 }
 
 export interface Excecao {
@@ -63,7 +77,11 @@ export interface DatasetLinha {
   chave_nfe: string;
   status_final: StatusFinal;
   status_sefaz: StatusSefaz;
+  chave_existe_no_erp: boolean;
+  ie_emitente_confere: boolean;
   encontrada_no_erp: boolean;
+  resultado_matching: ResultadoMatching;
+  motivo_divergencia: "IE_EMITENTE_DIVERGENTE" | "CHAVE_NAO_ENCONTRADA" | null;
   tem_excecao_ativa: boolean;
   motivo_excecao?: string;
   data_emissao: string;

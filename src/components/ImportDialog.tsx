@@ -47,12 +47,17 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       for (const r of all) {
         if (!r.ok || !r.notasSefaz) continue;
         for (const n of r.notasSefaz) {
-          const empresa = store.upsertEmpresaByCnpj(n.cnpj_destinatario);
+          const empresa = store.upsertEmpresaByCnpj(n.destinatario_cnpj_cpf || n.cnpj_destinatario);
           todasNotas.push({
             empresa_id: empresa.id,
             chave_nfe: n.chave_nfe,
             status_sefaz: n.status_sefaz,
             data_emissao: n.data_emissao,
+            emitente_inscricao_estadual: n.emitente_inscricao_estadual,
+            emitente_cnpj_cpf: n.emitente_cnpj_cpf,
+            emitente_razao_social: n.emitente_razao_social,
+            destinatario_cnpj_cpf: n.destinatario_cnpj_cpf,
+            destinatario_razao_social: n.destinatario_razao_social,
             inscricao_estadual_destinatario: n.inscricao_estadual_destinatario,
             payload_completo: n.payload_completo,
           });
@@ -130,8 +135,8 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               />
               <p className="text-xs text-muted-foreground mt-2">
                 {tipo === "SEFAZ"
-                  ? "Colunas obrigatórias: chave_nfe, cnpj_destinatario, status_sefaz, data_emissao."
-                  : "Colunas obrigatórias: chave_nfe. Opcional: inscricao_estadual."}
+                  ? "Colunas obrigatórias (layout PRD 08): A, D, I, L, O."
+                  : "Colunas obrigatórias (layout PRD 09): AC (chave) e Z (IE emitente)."}
               </p>
             </div>
 
