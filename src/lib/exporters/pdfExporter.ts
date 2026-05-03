@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { DatasetLinha } from "@/lib/types";
+import { getNatureza } from "@/lib/conferencia/helpers";
 import {
   ConferenciaStats,
   FiltrosConferencia,
@@ -11,7 +12,6 @@ import {
   formatarFiltrosAplicados,
   getDestinatarioNome,
   getEmitenteNome,
-  getNatureza,
   getNumeroNota,
   getValorTotal,
 } from "./helpers";
