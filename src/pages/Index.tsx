@@ -11,14 +11,14 @@ import { DetailDrawer } from "@/components/DetailDrawer";
 import { LogsDrawer } from "@/components/LogsDrawer";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { AlertCircle, Building2, CircleHelp, ClipboardList, Ellipsis, FileText, Search, ShieldCheck, Upload } from "lucide-react";
+import { AlertCircle, Ban, Building2, CircleHelp, ClipboardList, Ellipsis, FileDown, FileSpreadsheet, FileText, Search, ShieldCheck, Upload } from "lucide-react";
 import type { DatasetLinha, StatusFinal } from "@/lib/types";
 
 const PAGE_SIZE = 10;
-type ViewKey = "conferencia" | "importacao" | "destinatarios" | "logs";
+type ViewKey = "conferencia" | "importacao" | "destinatarios" | "excecoes" | "logs";
 
 const Index = () => {
-  const { dataset, empresas, logs } = useStore();
+  const { dataset, empresas, excecoes, logs } = useStore();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -100,10 +100,11 @@ const Index = () => {
           </div>
 
           <nav className="space-y-1 text-sm">
-            {/* Ajuste estrutural: navegação lateral passa a controlar áreas operacionais sem roteamento completo nesta etapa. */}
+            {/* Navegação por estado é temporária nesta etapa; o PRD prevê evolução posterior para roteamento real. */}
             <NavItem label="Conferência" icon={<ShieldCheck className="h-4 w-4" />} active={activeView === "conferencia"} onClick={() => setActiveView("conferencia")} />
             <NavItem label="Importação" icon={<Upload className="h-4 w-4" />} active={activeView === "importacao"} onClick={() => setActiveView("importacao")} />
             <NavItem label="Destinatários" icon={<Building2 className="h-4 w-4" />} active={activeView === "destinatarios"} onClick={() => setActiveView("destinatarios")} />
+            <NavItem label="Exceções" icon={<Ban className="h-4 w-4" />} active={activeView === "excecoes"} onClick={() => setActiveView("excecoes")} />
             <NavItem label="Logs" icon={<ClipboardList className="h-4 w-4" />} active={activeView === "logs"} onClick={() => setActiveView("logs")} />
           </nav>
         </aside>
@@ -117,14 +118,12 @@ const Index = () => {
               </div>
               {activeView === "conferencia" && (
                 <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={() => setImportOpen(true)}>
-                    <Upload className="h-4 w-4 mr-2" /> Importar Arquivos
-                  </Button>
+                  {/* Botões de Exportar Excel e Gerar PDF são placeholders visuais; não há exportação/PDF real nesta etapa. */}
                   <Button variant="outline" size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>
-                    Exportar Excel
+                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>
-                    Gerar PDF
+                  <Button size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>
+                    <FileDown className="h-4 w-4 mr-2" /> Gerar PDF
                   </Button>
                 </div>
               )}
@@ -162,6 +161,58 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Cadastro de destinatários será implementado na próxima etapa.</p>
                 <Button variant="outline">Novo destinatário</Button>
               </Card>
+            )}
+            {activeView === "excecoes" && (
+              <>
+                {/* Exceções são módulo operacional previsto no PRD 04 para notas desconsideradas/revertidas. */}
+                <Card className="p-4 space-y-1">
+                  <h2 className="text-lg font-semibold">Exceções Operacionais</h2>
+                  <p className="text-sm text-muted-foreground">Notas desconsideradas manualmente ou tratadas fora da regra automática.</p>
+                </Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <SummaryCard label="Exceções ativas" value={excecoes.filter((e) => e.ativa).length} icon={<Ban className="h-4 w-4" />} tone="warning" />
+                  <SummaryCard label="Exceções revertidas/futuras" value={excecoes.filter((e) => !e.ativa).length} icon={<FileText className="h-4 w-4" />} tone="muted" />
+                </div>
+                <Card className="p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-medium">Lista de exceções</h3>
+                    <Button variant="outline" size="sm" onClick={() => toast({ title: "Cadastro de exceções será implementado em etapa futura." })}>
+                      Nova exceção
+                    </Button>
+                  </div>
+                  {excecoes.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-border p-8 text-center">
+                      <p className="font-medium">Nenhuma exceção cadastrada.</p>
+                      <Button className="mt-3" size="sm" variant="outline" onClick={() => toast({ title: "Cadastro de exceções será implementado em etapa futura." })}>
+                        Nova exceção
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium">Destinatário</th>
+                            <th className="text-left px-3 py-2 font-medium">Chave NFe</th>
+                            <th className="text-left px-3 py-2 font-medium">Motivo</th>
+                            <th className="text-left px-3 py-2 font-medium">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {excecoes.map((excecao) => (
+                            <tr key={excecao.id} className="border-t border-border">
+                              <td className="px-3 py-2">{empresas.find((e) => e.id === excecao.empresa_id)?.nome ?? "Destinatário não identificado"}</td>
+                              <td className="px-3 py-2 font-mono text-xs">{excecao.chave_nfe}</td>
+                              <td className="px-3 py-2">{excecao.motivo}</td>
+                              <td className="px-3 py-2">{excecao.ativa ? "Ativa" : "Revertida"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Card>
+              </>
             )}
             {activeView === "logs" && (
               <Card className="p-4 space-y-4">
