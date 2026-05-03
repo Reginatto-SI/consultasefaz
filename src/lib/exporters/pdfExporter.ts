@@ -82,7 +82,10 @@ export function exportarPdfConferencia(
     head,
     body,
     startY: 130,
-    margin: { left: 40, right: 40, bottom: 60 },
+    margin: { left: 40, right: 40, bottom: 72 },
+    // Garante quebra apenas entre linhas (nunca no meio da mesma NF-e) e repete cabeçalho em toda página.
+    rowPageBreak: "avoid",
+    showHead: "everyPage",
     // Padronização visual: todo o conteúdo da tabela deve ficar alinhado à esquerda.
     styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak", valign: "middle", halign: "left" },
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 7.5 },
