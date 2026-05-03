@@ -122,6 +122,8 @@ export function DetailDrawer({
               </Button>
             </section>
           ) : (
+            // Fluxo rápido contextual mantido: este card de drawer continua sendo o ponto de desconsideração de nota específica.
+            // A view de Exceções segue como gestão geral, sem remover esta funcionalidade nesta etapa.
             <section className="border border-border rounded-lg p-4">
               <h3 className="font-semibold text-sm mb-3">Desconsiderar nota</h3>
               <div className="space-y-3">
