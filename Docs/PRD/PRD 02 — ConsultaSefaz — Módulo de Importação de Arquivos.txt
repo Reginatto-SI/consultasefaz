@@ -1,0 +1,48 @@
+# PRD 02 — ConsultaSefaz — Importação de Arquivos
+
+## 1. Objetivo
+Definir a importação de arquivos SEFAZ e ERP com baixa fricção e consistência para o motor de conferência.
+
+## 2. Fonte de verdade deste PRD
+Este documento é a fonte de verdade de upload, parsing, validação de arquivo e snapshot de entrada.
+
+## 3. Entradas suportadas (V1)
+- Excel .xlsx e .xls
+- Upload múltiplo por lote
+- Tipos: SEFAZ e ERP
+
+## 4. Regras obrigatórias
+- Detectar cabeçalho automaticamente, com ajuste manual quando necessário.
+- Detectar colunas obrigatórias.
+- Processar arquivos de forma independente no lote.
+- Falha de um arquivo não deve bloquear os demais.
+- Ao finalizar lote válido, disparar conferência automática (PRD 05).
+
+## 5. Campos mínimos por tipo
+SEFAZ: chave_nfe, cnpj_destinatario, status_sefaz, data_emissao.
+ERP: chave_nfe (obrigatório), inscricao_estadual (opcional na V1).
+
+Regra obrigatória: ausência de IE no ERP não bloqueia importação nem matching.
+A importação não deve reprovar arquivo ERP por IE ausente; apenas registrar aviso operacional (PRD 06).
+
+## 6. Normalização obrigatória
+- chave_nfe sem máscara e sem espaços.
+- cnpj/ie sem máscara.
+- textos com trim e padronização de caixa.
+
+## 7. Snapshot
+- SEFAZ: substitui dados anteriores das empresas impactadas.
+- ERP: substitui base ERP vigente.
+- Exceções não são apagadas pelo snapshot (PRD 04).
+
+## 8. Erros e avisos
+Erros bloqueantes por arquivo: formato inválido, arquivo vazio, ausência de chave, cabeçalho inválido.
+Avisos: IE ausente ERP, linhas descartadas por inconsistência.
+
+Mensagens e histórico curto seguem PRD 06.
+
+## 9. Conexão com outros PRDs
+- PRD 01: princípios globais e multiempresa.
+- PRD 05: consumo das entradas.
+- PRD 06: exibição de feedback operacional.
+- PRD 07: contrato de dados mínimo.

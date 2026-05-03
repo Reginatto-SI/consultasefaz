@@ -1,0 +1,185 @@
+# PRD 07 — ConsultaSefaz — Contrato de Dados e Pipeline Estrutural
+
+---
+
+## 1. Objetivo
+
+Definir o contrato estrutural mínimo do sistema para garantir consistência entre importação, conferência, exceções, UI e logs.
+
+Este PRD é a fonte de verdade para:
+- entidades mínimas;
+- campos obrigatórios;
+- pipeline oficial ponta a ponta;
+- dataset final exibido na interface.
+
+---
+
+## 2. Prioridade entre PRDs (fonte de verdade por tema)
+
+- Regras de negócio globais: **PRD 01**
+- Importação e parsing de arquivos: **PRD 02**
+- Interface e experiência do usuário: **PRD 03**
+- Exceções operacionais e precedência: **PRD 04**
+- Algoritmo de conferência: **PRD 05**
+- Mensagens e registro de erros operacionais: **PRD 06**
+- Contratos de dados e pipeline oficial: **PRD 07 (este documento)**
+
+Em caso de conflito, prevalece esta ordem: PRD 01 > PRD 07 > PRD específico do tema.
+
+---
+
+## 3. Princípios obrigatórios da V1
+
+- Sistema multiempresa desde o início.
+- SEFAZ é fonte única de verdade.
+- Empresa da nota é definida somente pelo SEFAZ (CNPJ destinatário).
+- ERP nunca define empresa.
+- Exceções sobrescrevem qualquer regra automática.
+- Processamento determinístico (mesma entrada = mesmo resultado).
+- Modelo snapshot (sem histórico completo de execuções).
+
+---
+
+## 4. Entidades mínimas e campos obrigatórios
+
+### 4.1 Empresa
+
+- id (obrigatório)
+- nome (obrigatório)
+- cnpj (obrigatório, normalizado)
+- inscricao_estadual (opcional)
+
+---
+
+### 4.2 Nota SEFAZ (entrada principal)
+
+- id (obrigatório)
+- empresa_id (obrigatório)
+- chave_nfe (obrigatório, normalizada)
+- status_sefaz (obrigatório)
+- data_emissao (obrigatório para filtro por período)
+- inscricao_estadual_destinatario (opcional)
+- payload_completo (obrigatório)
+- importacao_id (obrigatório, rastreio de execução)
+
+---
+
+### 4.3 Registro ERP (entrada complementar)
+
+- id (obrigatório)
+- chave_nfe (obrigatório, normalizada)
+- inscricao_estadual (opcional)
+- importacao_id (obrigatório)
+
+Observação V1: IE no ERP pode faltar; matching sem IE é permitido apenas se definido no PRD 05 como fallback controlado.
+
+---
+
+### 4.4 Exceção
+
+- id (obrigatório)
+- empresa_id (obrigatório)
+- chave_nfe (obrigatório)
+- tipo_excecao = DESCONSIDERACAO (obrigatório)
+- motivo (obrigatório)
+- observacao (opcional)
+- usuario (opcional na V1)
+- data_registro (obrigatório)
+- ativa (obrigatório; true/false)
+
+Chave única lógica: empresa_id + chave_nfe + tipo_excecao + ativa.
+
+---
+
+### 4.5 Resultado de conferência (dataset final)
+
+- empresa_id
+- chave_nfe
+- status_final (OK | FALTANTE | IRREGULAR | DESCONSIDERADA)
+- status_sefaz
+- encontrada_no_erp (true/false)
+- tem_excecao_ativa (true/false)
+- motivo_excecao (se aplicável)
+- data_emissao
+- payload_resumo_tabela
+- payload_completo_drawer
+- referencia_execucao (snapshot atual)
+
+Observação: status IGNORADA pode existir internamente no motor, mas não é exibido na UI principal.
+
+---
+
+## 5. Pipeline oficial (V1)
+
+1. Upload de arquivos (PRD 02)
+2. Leitura, detecção de cabeçalho e colunas (PRD 02)
+3. Normalização de campos críticos (PRD 02 e PRD 05)
+4. Snapshot das entradas (SEFAZ por empresas impactadas; ERP global) (PRD 01/02)
+5. Aplicação do motor determinístico (PRD 05)
+6. Aplicação de exceções com prioridade máxima (PRD 04/05)
+7. Geração do dataset final para UI (PRD 03/05)
+8. Geração de métricas e resumo (PRD 03/05)
+9. Registro de erros/avisos operacionais (PRD 06)
+
+---
+
+## 6. Regras operacionais de consistência
+
+- Toda nota exibida deve ter origem em nota SEFAZ.
+- Nunca criar nota a partir de ERP isolado.
+- Exceção órfã (sem nota SEFAZ no snapshot atual) permanece cadastrada e não quebra o processamento.
+- Exceção órfã não deve gerar status na tabela principal enquanto a nota não reaparecer na SEFAZ.
+- Mudança em exceção ativa deve disparar nova conferência do snapshot atual.
+
+---
+
+## 7. Limites operacionais sugeridos para V1
+
+- Processamento síncrono e em memória para volumes médios.
+- Sem fila distribuída.
+- Sem histórico completo de snapshots.
+- Histórico curto apenas para logs operacionais (PRD 06).
+
+---
+
+## 8. Premissas de performance (V1)
+
+- Normalização linear.
+- Indexação ERP por chave de busca.
+- Evitar laços quadráticos.
+- Resultado previsível sem dependência da ordem dos arquivos.
+
+---
+
+## 9. Fora de escopo (evolução futura)
+
+- versionamento completo de snapshots;
+- trilha de auditoria avançada por usuário;
+- reconciliação financeira;
+- regras heurísticas/IA para classificação;
+- integração automática com APIs externas.
+
+---
+
+---
+
+
+## 10. Regra Oficial de Matching (V1)
+
+Regra única e obrigatória para o motor de conferência:
+
+1. Se o registro ERP tiver `inscricao_estadual` preenchida, o matching deve usar:
+   - `chave_nfe` + `inscricao_estadual`
+2. Se o registro ERP não tiver `inscricao_estadual` preenchida, o matching deve usar apenas:
+   - `chave_nfe`
+3. Se existirem múltiplos registros ERP para a mesma `chave_nfe`:
+   - considerar somente confirmação de existência (`encontrada_no_erp = true`)
+   - não gerar múltiplos matches para a mesma nota SEFAZ
+4. Nunca exigir correspondência 1:1 entre linhas SEFAZ e ERP.
+5. ERP nunca cria registros novos; ERP apenas confirma existência de nota da SEFAZ.
+
+Restrições explícitas da V1:
+- não usar heurística;
+- não usar similaridade;
+- não validar por nome, razão social, CNPJ de emitente/destinatário.
+

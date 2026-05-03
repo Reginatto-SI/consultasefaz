@@ -1,0 +1,61 @@
+# PRD 01 — ConsultaSefaz — Visão Geral e Regras de Negócio
+
+## 1. Objetivo
+Definir a visão funcional do ConsultaSefaz para conferência de notas fiscais de entrada com base em SEFAZ e ERP.
+
+## 2. Fonte de verdade deste PRD
+Este documento é a fonte de verdade para regras globais de negócio, escopo V1 e princípios do produto.
+
+## 3. Princípios obrigatórios (V1)
+- SEFAZ é a fonte única de verdade.
+- ERP apenas confirma escrituração.
+- Sistema multiempresa desde o início.
+- Empresa da nota é definida pelo CNPJ destinatário da SEFAZ.
+- ERP não define empresa.
+- Exceções sobrescrevem qualquer regra automática.
+- Processamento determinístico.
+- Modelo snapshot sem histórico completo de execuções.
+
+## 4. Escopo V1
+Inclui: importação SEFAZ/ERP, conferência automática, exceções, UI de consulta, logs operacionais.
+Não inclui: integração API SEFAZ, automação agendada, auditoria avançada, RBAC avançado.
+
+## 5. Status funcionais
+- OK
+- FALTANTE
+- IRREGULAR
+- DESCONSIDERADA
+
+Observação: status IGNORADA pode existir internamente no motor (PRD 05), sem exibição principal na UI (PRD 03).
+
+## 6. Regras de alto nível
+1) Importar arquivos SEFAZ e ERP (PRD 02)
+2) Normalizar dados críticos (PRD 02/05)
+3) Rodar motor de conferência automaticamente (PRD 05)
+4) Aplicar exceções com prioridade máxima (PRD 04)
+5) Exibir resultado consolidado por empresa e global (PRD 03)
+6) Registrar erros/avisos operacionais (PRD 06)
+
+## 6.1 Observação de matching (V1)
+- ERP é apenas confirmação de existência.
+- Matching não é validação fiscal.
+- O sistema não garante correspondência perfeita de IE em todos os registros ERP; aplica regra oficial do PRD 07.
+
+## 7. Multiempresa
+- Todas as notas SEFAZ devem estar vinculadas a empresa_id.
+- Exceções sempre vinculadas a empresa_id + chave.
+- Visualização por empresa e consolidada.
+
+## 8. Conexão com os demais PRDs
+- PRD 02: importação e snapshot de entrada.
+- PRD 03: experiência operacional.
+- PRD 04: exceções e precedência.
+- PRD 05: algoritmo determinístico.
+- PRD 06: logs operacionais.
+- PRD 07: contrato de dados e pipeline.
+
+## 9. Evoluções futuras
+- Histórico completo de execuções.
+- Integrações externas.
+- Auditoria avançada.
+- Regras fiscais complementares.

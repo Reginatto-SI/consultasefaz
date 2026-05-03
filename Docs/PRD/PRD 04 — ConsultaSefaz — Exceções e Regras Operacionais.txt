@@ -1,0 +1,49 @@
+# PRD 04 — ConsultaSefaz — Exceções e Regras Operacionais
+
+## 1. Objetivo
+Definir exceções manuais que sobrescrevem o comportamento automático do motor.
+
+## 2. Fonte de verdade deste PRD
+Este documento é a fonte de verdade sobre criação, persistência, reversão e precedência de exceções.
+
+## 3. Regra central
+Exceção ativa sempre vence qualquer classificação automática.
+
+## 4. Tipo de exceção (V1)
+- DESCONSIDERAÇÃO de nota
+
+## 5. Campos mínimos
+- empresa_id
+- chave_nfe
+- motivo
+- observacao (opcional)
+- usuario (opcional V1)
+- data_registro
+- ativa (true/false)
+
+## 6. Ordem obrigatória de decisão
+1) Verificar exceção ativa
+2) Verificar validade de status SEFAZ
+3) Verificar matching com ERP
+
+## 7. Comportamentos obrigatórios
+- Exceção é permanente até reversão manual.
+- Exceção continua existindo após novos snapshots.
+- Reversão reativa fluxo normal de conferência.
+- Não permitir duplicidade de exceção ativa para mesma empresa+chave.
+
+## 8. Exceção órfã
+Se a exceção existir mas a nota não estiver no snapshot SEFAZ atual:
+- manter exceção cadastrada;
+- não gerar linha na tabela principal;
+- não falhar processamento.
+
+## 9. Limites V1
+- Sem aprovação por workflow.
+- Sem trilha de auditoria completa.
+
+## 10. Conexão com outros PRDs
+- PRD 01: princípio de precedência.
+- PRD 03: ações de UI.
+- PRD 05: aplicação no algoritmo.
+- PRD 07: contrato estrutural da exceção.

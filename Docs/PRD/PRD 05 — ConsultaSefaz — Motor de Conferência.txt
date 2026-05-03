@@ -1,0 +1,57 @@
+# PRD 05 — ConsultaSefaz — Motor de Conferência
+
+## 1. Objetivo
+Definir o algoritmo determinístico de conferência entre base SEFAZ, base ERP e exceções.
+
+## 2. Fonte de verdade deste PRD
+Este documento é a fonte de verdade do processamento, da ordem das regras e da geração do resultado final.
+
+## 3. Entradas
+- notas_sefaz (com empresa_id)
+- registros_erp (sem empresa)
+- excecoes_ativas (empresa_id + chave_nfe)
+
+Contrato detalhado: PRD 07.
+
+## 4. Pré-processamento obrigatório
+- Normalizar chave/IE.
+- Descartar registros sem chave válida (com log operacional).
+- Indexar ERP para busca rápida.
+
+## 5. Regras de classificação
+
+**Matching segue regra oficial definida no PRD 07.**
+
+Regra operacional aplicada no motor:
+- ERP com IE preenchida: comparar `chave_nfe + inscricao_estadual`.
+- ERP sem IE: comparar apenas `chave_nfe`.
+- Múltiplos registros ERP para a mesma chave: tratar somente como confirmação de existência.
+
+Para cada nota SEFAZ:
+
+1) Se há exceção ativa → DESCONSIDERADA.
+2) Se status SEFAZ inválido:
+   - existe no ERP → IRREGULAR
+   - não existe no ERP → IGNORADA (não exibida na UI)
+3) Se status SEFAZ válido:
+   - existe no ERP → OK
+   - não existe no ERP → FALTANTE
+
+## 6. Determinismo
+- Mesma entrada produz mesma saída.
+- Resultado não depende da ordem de arquivos.
+- Sem aleatoriedade.
+
+## 7. Disparos de execução
+- Após importação SEFAZ.
+- Após importação ERP.
+- Após criação/reversão de exceção.
+
+## 8. Saída
+Dataset final por nota contendo status final, indicadores de matching e payload para UI.
+Contrato de saída: PRD 07.
+
+## 9. Limites V1
+- Sem histórico completo de execuções.
+- Sem processamento distribuído.
+- Sem validações fiscais financeiras avançadas.

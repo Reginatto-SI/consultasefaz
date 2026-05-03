@@ -1,0 +1,58 @@
+# PRD 03 — ConsultaSefaz — Interface e Experiência do Usuário (UX/UI)
+
+## 1. Objetivo
+Definir a interface operacional para importar, conferir, filtrar e tratar exceções.
+
+## 2. Fonte de verdade deste PRD
+Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela e fluxo do usuário.
+
+## 3. Fluxo oficial de uso
+1) Importar arquivos (PRD 02)
+2) Conferir resumo e lista
+3) Investigar detalhes
+4) Aplicar/reverter exceções (PRD 04)
+5) Reavaliar resultado recalculado (PRD 05)
+
+## 4. Componentes V1
+- Botão principal “Importar Arquivos”
+- Card de filtros
+- Cards de resumo (Total, OK, Faltantes, Irregulares)
+- Tabela paginada
+- Drawer de detalhes
+- Feedback pós-importação com erros/avisos (PRD 06)
+
+## 5. Filtros obrigatórios
+- Empresa
+- Status
+- Período (data inicial/final)
+- Busca por chave NFe
+
+## 6. Regras de exibição
+- UI não depende de IE para calcular ou inferir status.
+- Status exibido vem exclusivamente do resultado do motor de conferência (PRD 05).
+- Mostrar visão por empresa e consolidado multiempresa.
+- Status DESCONSIDERADA deve ficar explícito.
+- Status IGNORADA não entra na tabela principal.
+- Linha deve abrir drawer com payload completo da SEFAZ.
+
+## 7. Ações de usuário
+- Ver detalhes
+- Desconsiderar nota
+- Reverter desconsideração
+
+## 8. Estados da tela
+- Sem dados
+- Carregando
+- Erro com orientação de correção
+
+## 9. Limites V1
+- Sem dashboard avançado.
+- Sem personalização estrutural de layout.
+- Sem perfis avançados de acesso.
+
+## 10. Conexão com outros PRDs
+- PRD 02: importação.
+- PRD 04: ações de exceção.
+- PRD 05: resultado exibido.
+- PRD 06: mensagens de erro/aviso.
+- PRD 07: contrato do dataset exibido.
