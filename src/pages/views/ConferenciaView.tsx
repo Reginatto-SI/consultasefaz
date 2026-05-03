@@ -1,9 +1,12 @@
-import { AlertCircle, Building2, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
+import * as React from "react";
+import { AlertCircle, Building2, Check, ChevronDown, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { DatasetLinha, Empresa, StatusFinal } from "@/lib/types";
 
@@ -86,15 +89,8 @@ export function ConferenciaView(props: ConferenciaViewProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
           <div>
             <Label className="text-xs">Destinatário</Label>
-            <Select value={empresaId} onValueChange={setEmpresaId}>
-              <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {empresas.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Combobox pesquisável para escalar a seleção de destinatário sem alterar a regra do filtro atual. */}
+            <DestinatarioCombobox empresaId={empresaId} setEmpresaId={setEmpresaId} empresas={empresas} />
           </div>
           <div>
             <Label className="text-xs">Data inicial</Label>
@@ -222,5 +218,69 @@ function SummaryCard({ label, value, icon, tone }: { label: string; value: numbe
         <p className="text-xl font-bold tabular-nums leading-tight">{value}</p>
       </div>
     </Card>
+  );
+}
+
+
+function DestinatarioCombobox({
+  empresaId,
+  setEmpresaId,
+  empresas,
+}: {
+  empresaId: string;
+  setEmpresaId: (value: string) => void;
+  empresas: Empresa[];
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  const selectedLabel = empresaId === "all" ? "Todas" : empresas.find((e) => e.id === empresaId)?.nome ?? "Todas";
+
+  const toSearchText = (empresa: Empresa) => {
+    const documentoLimpo = (empresa.cnpj ?? "").replace(/\D/g, "");
+    return `${empresa.nome} ${empresa.razao_social ?? ""} ${empresa.cnpj ?? ""} ${documentoLimpo}`.trim();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="mt-1 h-9 w-full justify-between font-normal">
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Buscar destinatário..." />
+          <CommandList>
+            <CommandEmpty>Nenhum destinatário encontrado</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="todas all"
+                onSelect={() => {
+                  setEmpresaId("all");
+                  setOpen(false);
+                }}
+              >
+                <Check className={cn("mr-2 h-4 w-4", empresaId === "all" ? "opacity-100" : "opacity-0")} />
+                Todas
+              </CommandItem>
+              {empresas.map((empresa) => (
+                <CommandItem
+                  key={empresa.id}
+                  value={`${empresa.id} ${toSearchText(empresa)}`}
+                  onSelect={() => {
+                    setEmpresaId(empresa.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", empresaId === empresa.id ? "opacity-100" : "opacity-0")} />
+                  <span className="truncate">{empresa.nome}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
