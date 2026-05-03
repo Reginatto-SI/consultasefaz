@@ -15,12 +15,15 @@ A SEFAZ é a fonte de verdade. O ERP somente confirma escrituração.
 3. Aplicar snapshot de entrada.
 4. Executar motor de conferência determinístico.
 5. Aplicar exceções manuais com prioridade máxima.
-6. Exibir resultados por empresa e consolidado.
+6. Exibir resultados por destinatário e consolidado.
 7. Exibir logs operacionais para correção rápida.
 
 ## Estrutura dos PRDs (fonte de verdade funcional)
+
+Referência de nomenclatura e semântica: **PRD 00 — Dicionário de Domínio**.
 Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 
+- **PRD 00** — Dicionário de domínio e governança de nomenclatura.
 - **PRD 01** — Visão geral e regras de negócio globais.
 - **PRD 02** — Importação de arquivos e snapshot de entrada.
 - **PRD 03** — Interface e experiência operacional.
@@ -29,14 +32,22 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 - **PRD 06** — Logs de erros e avisos operacionais.
 - **PRD 07** — Contrato de dados e pipeline estrutural.
 
+
+## ⚠️ Convenção Crítica de Domínio (LEITURA OBRIGATÓRIA)
+- O sistema NÃO é multiempresa no sentido de ERP/tenant.
+- O sistema é multidestinatário (CNPJs conferidos).
+- `empresa_id` é legado técnico e NÃO representa organização.
+- Desenvolvedores devem obrigatoriamente ler o PRD 00 antes de qualquer alteração.
+
 ## Ordem recomendada de leitura
-1. PRD 01
-2. PRD 07
-3. PRD 02
-4. PRD 05
-5. PRD 04
-6. PRD 03
-7. PRD 06
+1. PRD 00
+2. PRD 01
+3. PRD 07
+4. PRD 02
+5. PRD 05
+6. PRD 04
+7. PRD 03
+8. PRD 06
 
 ## Ordem sugerida de desenvolvimento
 1. Contratos de dados e pipeline (PRD 07)
@@ -48,9 +59,9 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 7. Ajustes de regras globais e validação final (PRD 01)
 
 ## Principais regras de negócio
-- Multiempresa desde a V1.
-- Empresa da nota definida somente pela SEFAZ (CNPJ destinatário).
-- ERP não define empresa.
+- Multiempresa desde a V1 (semântica operacional: multidestinatário, conforme PRD 00).
+- Destinatário da nota definido somente pela SEFAZ (CNPJ destinatário).
+- ERP não define destinatário.
 - Exceções ativas sobrescrevem regras automáticas.
 - Processamento determinístico: mesma entrada, mesmo resultado.
 - Modelo snapshot na V1, sem histórico completo de execuções.
@@ -75,3 +86,9 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 - Regras fiscais complementares.
 - Alertas e observabilidade avançada.
 - Recursos de governança multiusuário.
+
+
+## Ordem obrigatória de leitura
+1. PRD 00
+2. PRD 01
+3. PRD 07
