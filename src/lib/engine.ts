@@ -19,10 +19,14 @@ export function normalizeCnpj(s: string): string {
   return (s || "").replace(/\D/g, "").trim();
 }
 
-export function normalizeIE(s?: string): string | undefined {
-  if (!s) return undefined;
-  const n = s.replace(/\D/g, "").trim();
-  return n || undefined;
+export function normalizeIE(value?: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+
+  // Removemos zeros à esquerda para compatibilizar IE textual da SEFAZ com IE numérica do RFT006/Maxicon no matching.
+  const numeros = String(value).replace(/\D/g, "");
+  const semZerosAEsquerda = numeros.replace(/^0+/, "");
+
+  return semZerosAEsquerda || undefined;
 }
 
 export function normalizeStatus(s: string): StatusSefaz {
@@ -88,7 +92,7 @@ export function rodarMotor(input: MotorInput): DatasetLinha[] {
       chave_existe_no_erp = true;
       // PRD 05/09: comparar IE do emitente da SEFAZ com IE do emitente no RFT006.
       ie_emitente_confere = !!ieEmitenteSefaz && erpMatches.some((r) => {
-        const ieErp = normalizeIE(r.inscricao_estadual_emitente || r.inscricao_estadual);
+        const ieErp = normalizeIE(r.inscricao_estadual_emitente);
         return !!ieErp && ieErp === ieEmitenteSefaz;
       });
 
