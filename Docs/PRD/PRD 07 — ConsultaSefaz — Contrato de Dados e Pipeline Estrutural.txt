@@ -140,7 +140,7 @@ Chave única lógica: empresa_id + chave_nfe + tipo_excecao + ativa.
 - payload_completo_drawer
 - referencia_execucao (snapshot atual)
 
-Observação: status IGNORADA pode existir internamente no motor, mas não é exibido na UI principal.
+Observação: status `IGNORADA` é resultado interno do motor, não é exibido na UI principal, pode ser usado para auditoria técnica curta/contagem operacional interna e não compõe os cards principais da V1.
 
 ---
 
@@ -149,7 +149,7 @@ Observação: status IGNORADA pode existir internamente no motor, mas não é ex
 1. Upload de arquivos (PRD 02)
 2. Leitura, detecção de cabeçalho e colunas (PRD 02, PRD 08 e PRD 09)
 3. Normalização de campos críticos (PRD 02 e PRD 05)
-4. Snapshot das entradas (SEFAZ por destinatários impactados; ERP global) (PRD 01/02)
+4. Snapshot das entradas: no SEFAZ, identificar os destinatários presentes no arquivo por `destinatario_cnpj_cpf` e substituir somente as notas desses destinatários impactados; destinatários ausentes no arquivo mantêm seus dados SEFAZ. No ERP/RFT006, snapshot global da base complementar vigente. (PRD 01/02)
 5. Aplicação do motor determinístico (PRD 05)
 6. Aplicação de exceções com prioridade máxima (PRD 04/05)
 7. Geração do dataset final para UI (PRD 03/05)

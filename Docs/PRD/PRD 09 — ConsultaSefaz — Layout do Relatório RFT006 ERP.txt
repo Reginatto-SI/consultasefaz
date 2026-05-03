@@ -109,8 +109,10 @@ Devem bloquear importação do arquivo RFT006:
 
 ## 14. Avisos operacionais
 Devem permitir continuidade com registro no PRD 06:
-- Linha com `chave_acesso` preenchida e `inscricao_estadual_emitente` ausente: não bloqueia o arquivo, fica inelegível para confirmação por chave+IE e deve gerar aviso operacional.
-- Linha sem `chave_acesso`: não participa do matching; pode ser descartada ou mantida apenas no payload/registro de importação conforme regra operacional de importação, com aviso quando representar inconsistência relevante.
+- Linha com `chave_acesso` preenchida e `inscricao_estadual_emitente` ausente não participa do matching; não bloqueia o arquivo inteiro quando as colunas obrigatórias existirem no cabeçalho.
+- Linha sem `chave_acesso` não participa do matching; não bloqueia o arquivo inteiro quando as colunas obrigatórias existirem no cabeçalho.
+- Linhas inelegíveis devem ser preservadas no payload/registro de importação quando tecnicamente viável.
+- Linhas inelegíveis devem gerar aviso operacional quando representarem inconsistência relevante.
 - Colunas opcionais ausentes.
 - Colunas adicionais preservadas apenas em `payload_completo_erp`.
 
