@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
-import { seedDemoData } from "@/lib/seed";
 import { Button } from "@/components/ui/button";
 import { ImportDialog } from "@/components/ImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
@@ -36,10 +35,6 @@ const Index = () => {
   const [dataIni, setDataIni] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    seedDemoData();
-  }, []);
 
   const filtered = useMemo(() => {
     return dataset.filter((l) => {
