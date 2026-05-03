@@ -10,7 +10,7 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { LogsDrawer } from "@/components/LogsDrawer";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Upload, FileText, ScrollText, ShieldCheck, AlertCircle, CircleHelp, Search, Sparkles } from "lucide-react";
+import { AlertCircle, Building2, CircleHelp, Ellipsis, FileText, ScrollText, Search, ShieldCheck, Upload } from "lucide-react";
 import type { DatasetLinha, StatusFinal } from "@/lib/types";
 
 const PAGE_SIZE = 10;
@@ -20,6 +20,16 @@ const Index = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [selected, setSelected] = useState<DatasetLinha | null>(null);
+  /**
+   * ⚠️ REGRA CRÍTICA DO SISTEMA
+   *
+   * `empresa_id` NÃO representa empresa/tenant.
+   * Representa exclusivamente o DESTINATÁRIO FISCAL (CNPJ) da nota SEFAZ.
+   *
+   * Qualquer uso fora desse contexto é ERRO DE MODELAGEM.
+   *
+   * Ver: PRD 00 — Dicionário de Domínio
+   */
   const [empresaId, setEmpresaId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [chave, setChave] = useState("");
@@ -55,163 +65,182 @@ const Index = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  useEffect(() => { setPage(1); }, [empresaId, status, chave, dataIni, dataFim]);
+  useEffect(() => {
+    setPage(1);
+  }, [empresaId, status, chave, dataIni, dataFim]);
 
   const errCount = logs.filter((l) => l.nivel === "erro").length;
   const warnCount = logs.filter((l) => l.nivel === "aviso").length;
 
+  const clearFilters = () => {
+    setEmpresaId("all");
+    setStatus("all");
+    setChave("");
+    setDataIni("");
+    setDataFim("");
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground shadow-sm">
+    <div className="min-h-screen bg-muted/30">
+      {/* Ajuste visual: base estrutural com sidebar fixa + header operacional para evitar aparência de dashboard isolado. */}
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[232px_1fr]">
+        <aside className="hidden lg:flex flex-col border-r border-border bg-card sticky top-0 h-screen p-4">
+          <div className="mb-7 flex items-center gap-3 px-2">
+            <div className="h-9 w-9 rounded-lg bg-primary/90 text-primary-foreground flex items-center justify-center">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">ConsultaSefaz</h1>
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Sparkles className="h-3 w-3" /> Conferência Inteligente de Notas Fiscais
-              </p>
+              <p className="text-lg font-bold leading-none">ConsultaSefaz</p>
+              <p className="text-xs text-muted-foreground">Conferência fiscal</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setLogsOpen(true)}>
-              <ScrollText className="h-4 w-4 mr-2" />
-              Logs
-              {(errCount + warnCount) > 0 && (
-                <span className="ml-2 text-xs bg-muted px-1.5 py-0.5 rounded-full">
-                  {errCount + warnCount}
-                </span>
+
+          <nav className="space-y-1 text-sm">
+            <NavItem label="Conferência" active />
+            <NavItem label="Importação" />
+            <NavItem label="Destinatários" />
+            <NavItem label="Logs" />
+          </nav>
+        </aside>
+
+        <div className="min-w-0">
+          <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+            <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+              <div>
+                <h1 className="text-lg font-semibold">Conferência</h1>
+                <p className="text-xs text-muted-foreground">Conferência Inteligente de Notas Fiscais de Entrada</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setLogsOpen(true)}>
+                  <ScrollText className="h-4 w-4 mr-2" /> Logs
+                  {(errCount + warnCount) > 0 && <span className="ml-2 rounded-full bg-muted px-1.5 text-xs">{errCount + warnCount}</span>}
+                </Button>
+                <Button size="sm" onClick={() => setImportOpen(true)}>
+                  <Upload className="h-4 w-4 mr-2" /> Importar Arquivos
+                </Button>
+              </div>
+            </div>
+          </header>
+
+          <main className="p-4 md:p-6 space-y-4">
+            {/* Ajuste visual: cards compactos para manter contexto sem competir com a tabela. */}
+            <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+              <SummaryCard label="Total" value={stats.total} icon={<FileText className="h-4 w-4" />} tone="primary" />
+              <SummaryCard label="OK" value={stats.ok} icon={<ShieldCheck className="h-4 w-4" />} tone="success" />
+              <SummaryCard label="Faltantes" value={stats.faltantes} icon={<CircleHelp className="h-4 w-4" />} tone="warning" />
+              <SummaryCard label="Irregulares" value={stats.irregulares} icon={<AlertCircle className="h-4 w-4" />} tone="destructive" />
+              <SummaryCard label="Desconsideradas" value={stats.desconsideradas} icon={<Building2 className="h-4 w-4" />} tone="muted" />
+            </div>
+
+            {/* Ajuste visual: card de filtros compacto/responsivo com ação explícita para limpar estado. */}
+            <Card className="p-3 md:p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Destinatário</Label>
+                  <Select value={empresaId} onValueChange={setEmpresaId}>
+                    <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {empresas.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Status</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="OK">OK</SelectItem>
+                      <SelectItem value="FALTANTE">Faltante</SelectItem>
+                      <SelectItem value="IRREGULAR">Irregular</SelectItem>
+                      <SelectItem value="DESCONSIDERADA">Desconsiderada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Data inicial</Label>
+                  <Input type="date" value={dataIni} onChange={(e) => setDataIni(e.target.value)} className="mt-1 h-9" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data final</Label>
+                  <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="mt-1 h-9" />
+                </div>
+                <div>
+                  <Label className="text-xs">Buscar chave NFe</Label>
+                  <div className="relative mt-1">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input value={chave} onChange={(e) => setChave(e.target.value)} placeholder="Chave..." className="pl-8 h-9" />
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="h-9" onClick={clearFilters}>Limpar filtros</Button>
+              </div>
+            </Card>
+
+            {/* Ajuste visual: tabela com protagonismo e linhas clicáveis para ação rápida de conferência. */}
+            <Card className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 font-medium">Status</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Destinatário</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Chave NFe</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Emitente</th>
+                      <th className="text-right px-4 py-2.5 font-medium">Valor</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Emissão</th>
+                      <th className="text-left px-4 py-2.5 font-medium">SEFAZ</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageData.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                          <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="font-medium">Sem dados para exibir</p>
+                          <p className="text-xs mt-1">Importe arquivos SEFAZ e ERP para iniciar a conferência.</p>
+                        </td>
+                      </tr>
+                    )}
+                    {pageData.map((l) => (
+                      <tr key={l.empresa_id + l.chave_nfe} className="border-t border-border hover:bg-muted/40 cursor-pointer" onClick={() => setSelected(l)}>
+                        <td className="px-4 py-2.5"><StatusBadge status={l.status_final} /></td>
+                        <td className="px-4 py-2.5 font-medium">{l.empresa_nome}</td>
+                        <td className="px-4 py-2.5 font-mono text-xs">{l.chave_nfe.slice(0, 8)}…{l.chave_nfe.slice(-6)}</td>
+                        <td className="px-4 py-2.5">{l.payload_resumo_tabela.emitente ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
+                          {typeof l.payload_resumo_tabela.valor === "number"
+                            ? l.payload_resumo_tabela.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-2.5">{new Date(l.data_emissao).toLocaleDateString("pt-BR")}</td>
+                        <td className="px-4 py-2.5 text-xs capitalize text-muted-foreground">{l.status_sefaz}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelected(l); }}>
+                            <Ellipsis className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {filtered.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-t border-border text-sm">
+                  <span className="text-muted-foreground">Página {page} de {totalPages} · {filtered.length} registros</span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>Anterior</Button>
+                    <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>Próxima</Button>
+                  </div>
+                </div>
               )}
-            </Button>
-            <Button onClick={() => setImportOpen(true)} className="shadow-sm">
-              <Upload className="h-4 w-4 mr-2" /> Importar Arquivos
-            </Button>
-          </div>
+            </Card>
+          </main>
         </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-6 space-y-6">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SummaryCard label="Total" value={stats.total} icon={<FileText className="h-5 w-5" />} tone="primary" />
-          <SummaryCard label="OK" value={stats.ok} icon={<ShieldCheck className="h-5 w-5" />} tone="success" />
-          <SummaryCard label="Faltantes" value={stats.faltantes} icon={<CircleHelp className="h-5 w-5" />} tone="warning" />
-          <SummaryCard label="Irregulares" value={stats.irregulares} icon={<AlertCircle className="h-5 w-5" />} tone="destructive" />
-        </div>
-
-        {/* Filters */}
-        <Card className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <div>
-              <Label className="text-xs">Empresa</Label>
-              <Select value={empresaId} onValueChange={setEmpresaId}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {empresas.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="OK">OK</SelectItem>
-                  <SelectItem value="FALTANTE">Faltante</SelectItem>
-                  <SelectItem value="IRREGULAR">Irregular</SelectItem>
-                  <SelectItem value="DESCONSIDERADA">Desconsiderada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Data inicial</Label>
-              <Input type="date" value={dataIni} onChange={(e) => setDataIni(e.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs">Data final</Label>
-              <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs">Buscar chave NFe</Label>
-              <div className="relative mt-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input value={chave} onChange={(e) => setChave(e.target.value)} placeholder="Chave..." className="pl-8" />
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Table */}
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium">Status</th>
-                  <th className="text-left px-4 py-3 font-medium">Empresa</th>
-                  <th className="text-left px-4 py-3 font-medium">Chave NFe</th>
-                  <th className="text-left px-4 py-3 font-medium">Emitente</th>
-                  <th className="text-right px-4 py-3 font-medium">Valor</th>
-                  <th className="text-left px-4 py-3 font-medium">Emissão</th>
-                  <th className="text-left px-4 py-3 font-medium">SEFAZ</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageData.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="text-center py-16 text-muted-foreground">
-                      <FileText className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                      <p className="font-medium">Sem dados para exibir</p>
-                      <p className="text-xs mt-1">Importe arquivos SEFAZ e ERP para iniciar a conferência.</p>
-                    </td>
-                  </tr>
-                )}
-                {pageData.map((l) => (
-                  <tr key={l.empresa_id + l.chave_nfe} className="border-t border-border hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3"><StatusBadge status={l.status_final} /></td>
-                    <td className="px-4 py-3 font-medium">{l.empresa_nome}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{l.chave_nfe.slice(0, 8)}…{l.chave_nfe.slice(-6)}</td>
-                    <td className="px-4 py-3">{l.payload_resumo_tabela.emitente ?? "—"}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {typeof l.payload_resumo_tabela.valor === "number"
-                        ? l.payload_resumo_tabela.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3">{new Date(l.data_emissao).toLocaleDateString("pt-BR")}</td>
-                    <td className="px-4 py-3 text-xs capitalize text-muted-foreground">{l.status_sefaz}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setSelected(l)}>Detalhes</Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filtered.length > PAGE_SIZE && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm">
-              <span className="text-muted-foreground">
-                Página {page} de {totalPages} · {filtered.length} registros
-              </span>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>
-                  Anterior
-                </Button>
-                <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
-                  Próxima
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
-      </main>
+      </div>
 
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
       <DetailDrawer linha={selected} open={!!selected} onOpenChange={(v) => !v && setSelected(null)} />
@@ -219,6 +248,17 @@ const Index = () => {
     </div>
   );
 };
+
+function NavItem({ label, active = false }: { label: string; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={`w-full rounded-md px-3 py-2 text-left transition-colors ${active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+    >
+      {label}
+    </button>
+  );
+}
 
 function SummaryCard({
   label,
@@ -229,22 +269,21 @@ function SummaryCard({
   label: string;
   value: number;
   icon: React.ReactNode;
-  tone: "primary" | "success" | "warning" | "destructive";
+  tone: "primary" | "success" | "warning" | "destructive" | "muted";
 }) {
   const toneClasses: Record<string, string> = {
     primary: "bg-primary/10 text-primary",
     success: "bg-success/10 text-success",
     warning: "bg-warning/10 text-warning",
     destructive: "bg-destructive/10 text-destructive",
+    muted: "bg-muted text-muted-foreground",
   };
   return (
-    <Card className="p-4 flex items-center gap-4">
-      <div className={`h-11 w-11 rounded-lg flex items-center justify-center ${toneClasses[tone]}`}>
-        {icon}
-      </div>
+    <Card className="p-3 flex items-center gap-3">
+      <div className={`h-9 w-9 rounded-md flex items-center justify-center ${toneClasses[tone]}`}>{icon}</div>
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
-        <p className="text-2xl font-bold tabular-nums">{value}</p>
+        <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
+        <p className="text-xl font-bold tabular-nums leading-tight">{value}</p>
       </div>
     </Card>
   );

@@ -4,6 +4,8 @@
 
 ## 1. Objetivo
 
+Referência obrigatória de nomenclatura: PRD 00 — Dicionário de Domínio.
+
 Definir o contrato estrutural mínimo do sistema para garantir consistência entre importação, conferência, exceções, UI e logs.
 
 Este PRD é a fonte de verdade para:
@@ -16,6 +18,7 @@ Este PRD é a fonte de verdade para:
 
 ## 2. Prioridade entre PRDs (fonte de verdade por tema)
 
+- Dicionário de domínio e nomenclatura: **PRD 00**
 - Regras de negócio globais: **PRD 01**
 - Importação e parsing de arquivos: **PRD 02**
 - Interface e experiência do usuário: **PRD 03**
@@ -24,16 +27,30 @@ Este PRD é a fonte de verdade para:
 - Mensagens e registro de erros operacionais: **PRD 06**
 - Contratos de dados e pipeline oficial: **PRD 07 (este documento)**
 
-Em caso de conflito, prevalece esta ordem: PRD 01 > PRD 07 > PRD específico do tema.
+Em caso de conflito, prevalece esta ordem: PRD 00 > PRD 01 > PRD 07 > PRD específico do tema.
 
 ---
 
 ## 3. Princípios obrigatórios da V1
 
+
+## Regra crítica de modelagem (OBRIGATÓRIO)
+- `empresa_id` NÃO representa tenant.
+- Representa destinatário fiscal.
+- Qualquer evolução futura deve separar:
+  - `tenant_id` (organização)
+  - `destinatario_id` (fiscal)
+
+## 3.1 Convenção semântica para V1
+- No contexto operacional, entidade "Empresa" equivale a **Destinatário SEFAZ** (CNPJ destinatário da NF-e).
+- `empresa_id` é mantido como nome de campo técnico por compatibilidade, com semântica de identificador do destinatário fiscal.
+- ERP não define destinatário; ERP apenas confirma existência de nota da SEFAZ.
+
+
 - Sistema multiempresa desde o início.
 - SEFAZ é fonte única de verdade.
-- Empresa da nota é definida somente pelo SEFAZ (CNPJ destinatário).
-- ERP nunca define empresa.
+- Destinatário da nota é definido somente pelo SEFAZ (CNPJ destinatário).
+- ERP nunca define destinatário.
 - Exceções sobrescrevem qualquer regra automática.
 - Processamento determinístico (mesma entrada = mesmo resultado).
 - Modelo snapshot (sem histórico completo de execuções).
@@ -42,7 +59,7 @@ Em caso de conflito, prevalece esta ordem: PRD 01 > PRD 07 > PRD específico do 
 
 ## 4. Entidades mínimas e campos obrigatórios
 
-### 4.1 Empresa
+### 4.1 Destinatário SEFAZ
 
 - id (obrigatório)
 - nome (obrigatório)
@@ -114,7 +131,7 @@ Observação: status IGNORADA pode existir internamente no motor, mas não é ex
 1. Upload de arquivos (PRD 02)
 2. Leitura, detecção de cabeçalho e colunas (PRD 02)
 3. Normalização de campos críticos (PRD 02 e PRD 05)
-4. Snapshot das entradas (SEFAZ por empresas impactadas; ERP global) (PRD 01/02)
+4. Snapshot das entradas (SEFAZ por destinatários impactados; ERP global) (PRD 01/02)
 5. Aplicação do motor determinístico (PRD 05)
 6. Aplicação de exceções com prioridade máxima (PRD 04/05)
 7. Geração do dataset final para UI (PRD 03/05)

@@ -4,6 +4,8 @@
 Definir exceções manuais que sobrescrevem o comportamento automático do motor.
 
 ## 2. Fonte de verdade deste PRD
+
+Referência obrigatória de nomenclatura: PRD 00 — Dicionário de Domínio.
 Este documento é a fonte de verdade sobre criação, persistência, reversão e precedência de exceções.
 
 ## 3. Regra central
@@ -13,7 +15,7 @@ Exceção ativa sempre vence qualquer classificação automática.
 - DESCONSIDERAÇÃO de nota
 
 ## 5. Campos mínimos
-- empresa_id
+- empresa_id (identificador técnico do destinatário na V1; não representa tenant)
 - chave_nfe
 - motivo
 - observacao (opcional)
@@ -30,7 +32,7 @@ Exceção ativa sempre vence qualquer classificação automática.
 - Exceção é permanente até reversão manual.
 - Exceção continua existindo após novos snapshots.
 - Reversão reativa fluxo normal de conferência.
-- Não permitir duplicidade de exceção ativa para mesma empresa+chave.
+- Não permitir duplicidade de exceção ativa para mesmo destinatário + chave.
 
 ## 8. Exceção órfã
 Se a exceção existir mas a nota não estiver no snapshot SEFAZ atual:

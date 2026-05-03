@@ -4,14 +4,24 @@
 Definir a visão funcional do ConsultaSefaz para conferência de notas fiscais de entrada com base em SEFAZ e ERP.
 
 ## 2. Fonte de verdade deste PRD
+
+Referência obrigatória de nomenclatura: PRD 00 — Dicionário de Domínio.
+
+> Este PRD deve ser interpretado em conjunto com o PRD 00 — Dicionário de Domínio.
+
+## 2.1 Convenção de nomenclatura (V1)
+- Na interface e na operação, o cadastro de CNPJs conferidos deve ser chamado de **Destinatários SEFAZ** (ou **Destinatários**).
+- Em artefatos técnicos, `empresa_id` pode permanecer como identificador legado, representando o destinatário fiscal da nota.
+- Multiempresa na V1 significa múltiplos destinatários fiscais no mesmo processamento; não implica multi-tenant completo.
+
 Este documento é a fonte de verdade para regras globais de negócio, escopo V1 e princípios do produto.
 
 ## 3. Princípios obrigatórios (V1)
 - SEFAZ é a fonte única de verdade.
 - ERP apenas confirma escrituração.
 - Sistema multiempresa desde o início.
-- Empresa da nota é definida pelo CNPJ destinatário da SEFAZ.
-- ERP não define empresa.
+- Destinatário da nota é definido pelo CNPJ destinatário da SEFAZ.
+- ERP não define destinatário.
 - Exceções sobrescrevem qualquer regra automática.
 - Processamento determinístico.
 - Modelo snapshot sem histórico completo de execuções.
@@ -33,7 +43,7 @@ Observação: status IGNORADA pode existir internamente no motor (PRD 05), sem e
 2) Normalizar dados críticos (PRD 02/05)
 3) Rodar motor de conferência automaticamente (PRD 05)
 4) Aplicar exceções com prioridade máxima (PRD 04)
-5) Exibir resultado consolidado por empresa e global (PRD 03)
+5) Exibir resultado consolidado por destinatário e global (PRD 03)
 6) Registrar erros/avisos operacionais (PRD 06)
 
 ## 6.1 Observação de matching (V1)
@@ -42,9 +52,9 @@ Observação: status IGNORADA pode existir internamente no motor (PRD 05), sem e
 - O sistema não garante correspondência perfeita de IE em todos os registros ERP; aplica regra oficial do PRD 07.
 
 ## 7. Multiempresa
-- Todas as notas SEFAZ devem estar vinculadas a empresa_id.
-- Exceções sempre vinculadas a empresa_id + chave.
-- Visualização por empresa e consolidada.
+- Todas as notas SEFAZ devem estar vinculadas a empresa_id (identificador técnico do destinatário na V1).
+- Exceções sempre vinculadas a empresa_id (identificador técnico do destinatário na V1) + chave.
+- Visualização por destinatário e consolidada.
 
 ## 8. Conexão com os demais PRDs
 - PRD 02: importação e snapshot de entrada.

@@ -4,7 +4,20 @@
 Definir a interface operacional para importar, conferir, filtrar e tratar exceções.
 
 ## 2. Fonte de verdade deste PRD
+
+Referência obrigatória de nomenclatura: PRD 00 — Dicionário de Domínio.
+
+## 2.1 Convenção de nomenclatura de UI (V1)
+- Onde houver referência a "Empresa" na interface, deve-se usar **Destinatário** para reduzir ambiguidade operacional.
+- O campo técnico `empresa_id` permanece interno na V1, representando o destinatário fiscal definido pelo CNPJ destinatário da SEFAZ.
+
 Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela e fluxo do usuário.
+
+
+## Convenção obrigatória de interface
+- Nunca usar o termo “Empresa” na UI.
+- Sempre usar “Destinatário”.
+- A UI deve refletir exatamente o domínio definido no PRD 00.
 
 ## 3. Fluxo oficial de uso
 1) Importar arquivos (PRD 02)
@@ -22,7 +35,7 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 - Feedback pós-importação com erros/avisos (PRD 06)
 
 ## 5. Filtros obrigatórios
-- Empresa
+- Destinatário
 - Status
 - Período (data inicial/final)
 - Busca por chave NFe
@@ -30,7 +43,7 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 ## 6. Regras de exibição
 - UI não depende de IE para calcular ou inferir status.
 - Status exibido vem exclusivamente do resultado do motor de conferência (PRD 05).
-- Mostrar visão por empresa e consolidado multiempresa.
+- Mostrar visão por destinatário e consolidado multidestinatário.
 - Status DESCONSIDERADA deve ficar explícito.
 - Status IGNORADA não entra na tabela principal.
 - Linha deve abrir drawer com payload completo da SEFAZ.
