@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ban, FileText } from "lucide-react";
+import { Ban, FileText, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { Empresa, Excecao } from "@/lib/types";
+import { useStore } from "@/store/useStore";
 import { toast } from "sonner";
 
 type ExcecoesViewProps = {
@@ -24,32 +25,53 @@ type ExcecoesViewProps = {
   onNovaExcecao: () => void;
 };
 
+const normalizeChaveNfe = (value: string) => value.replace(/\D/g, "").trim();
+
 export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao }: ExcecoesViewProps) {
+  const { addExcecao, reverterExcecao } = useStore();
   const [open, setOpen] = useState(false);
   const [empresaId, setEmpresaId] = useState("");
   const [chaveNfe, setChaveNfe] = useState("");
   const [motivo, setMotivo] = useState("");
   const [observacao, setObservacao] = useState("");
-  const [status, setStatus] = useState("Ativa");
 
   const handleOpenModal = () => {
-    // Abertura apenas visual do modal; o fluxo de etapa futura acontece somente no Salvar.
     setOpen(true);
   };
 
   const handleSave = () => {
+    if (!empresaId) {
+      toast.error("Destinatário é obrigatório.");
+      return;
+    }
+    const chaveNormalizada = normalizeChaveNfe(chaveNfe);
+    if (!chaveNormalizada) {
+      toast.error("Chave NF-e é obrigatória.");
+      return;
+    }
     if (!motivo.trim()) {
       toast.error("Motivo é obrigatório.");
       return;
     }
-    // Placeholder visual: a gestão real de exceções será implementada em etapa futura, sem persistência agora.
-    toast.info("Cadastro de exceções será implementado em etapa futura.");
+
+    const ok = addExcecao({
+      empresa_id: empresaId,
+      chave_nfe: chaveNormalizada,
+      motivo: motivo.trim(),
+      observacao: observacao.trim() || undefined,
+    });
+
+    if (!ok) {
+      toast.error("Já existe exceção ativa para este destinatário e chave.");
+      return;
+    }
+
+    toast.success("Exceção cadastrada localmente.");
     setOpen(false);
     setEmpresaId("");
     setChaveNfe("");
     setMotivo("");
     setObservacao("");
-    setStatus("Ativa");
   };
 
   return (
@@ -57,6 +79,11 @@ export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao
       <Card className="p-4 space-y-1">
         <h2 className="text-lg font-semibold">Exceções Operacionais</h2>
         <p className="text-sm text-muted-foreground">Notas desconsideradas manualmente ou tratadas fora da regra automática.</p>
+      </Card>
+      <Card className="p-3 border-warning/30 bg-warning/5">
+        <p className="text-sm text-muted-foreground">
+          As exceções são salvas apenas neste navegador. Se os dados do navegador forem limpos, elas poderão ser perdidas.
+        </p>
       </Card>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <SummaryCard label="Exceções ativas" value={excecoes.filter((e) => e.ativa).length} icon={<Ban className="h-4 w-4" />} tone="warning" />
@@ -72,11 +99,11 @@ export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Nova exceção operacional</DialogTitle>
-                <DialogDescription>Modal visual temporário para cadastro de exceção.</DialogDescription>
+                <DialogDescription>Cadastre uma chave para desconsideração local no navegador.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label>Destinatário</Label>
+                  <Label>Destinatário *</Label>
                   <Select value={empresaId} onValueChange={setEmpresaId}>
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Selecione um destinatário" />
@@ -87,9 +114,14 @@ export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao
                       ))}
                     </SelectContent>
                   </Select>
+                  {empresas.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Importe notas para carregar destinatários antes de cadastrar exceções.
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <Label htmlFor="chave-nfe">Chave NFe</Label>
+                  <Label htmlFor="chave-nfe">Chave NF-e *</Label>
                   <Input id="chave-nfe" value={chaveNfe} onChange={(e) => setChaveNfe(e.target.value)} className="mt-1" />
                 </div>
                 <div>
@@ -100,22 +132,10 @@ export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao
                   <Label htmlFor="obs-excecao">Observação</Label>
                   <Textarea id="obs-excecao" value={observacao} onChange={(e) => setObservacao(e.target.value)} className="mt-1" rows={3} />
                 </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Ativa">Ativa</SelectItem>
-                      <SelectItem value="Revertida">Revertida</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSave}>Salvar</Button>
+                <Button onClick={handleSave} disabled={empresas.length === 0}>Salvar</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -134,6 +154,7 @@ export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao
                   <th className="text-left px-3 py-2 font-medium">Chave NFe</th>
                   <th className="text-left px-3 py-2 font-medium">Motivo</th>
                   <th className="text-left px-3 py-2 font-medium">Status</th>
+                  <th className="text-left px-3 py-2 font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,6 +164,15 @@ export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao
                     <td className="px-3 py-2 font-mono text-xs">{excecao.chave_nfe}</td>
                     <td className="px-3 py-2">{excecao.motivo}</td>
                     <td className="px-3 py-2">{excecao.ativa ? "Ativa" : "Revertida"}</td>
+                    <td className="px-3 py-2">
+                      {excecao.ativa ? (
+                        <Button size="sm" variant="outline" onClick={() => reverterExcecao(excecao.id)}>
+                          <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reverter
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
