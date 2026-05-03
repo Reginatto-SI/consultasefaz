@@ -10,15 +10,19 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { LogsDrawer } from "@/components/LogsDrawer";
 import { StatusBadge } from "@/components/StatusBadge";
-import { AlertCircle, Building2, CircleHelp, Ellipsis, FileText, ScrollText, Search, ShieldCheck, Upload } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { AlertCircle, Building2, CircleHelp, ClipboardList, Ellipsis, FileText, Search, ShieldCheck, Upload } from "lucide-react";
 import type { DatasetLinha, StatusFinal } from "@/lib/types";
 
 const PAGE_SIZE = 10;
+type ViewKey = "conferencia" | "importacao" | "destinatarios" | "logs";
 
 const Index = () => {
   const { dataset, empresas, logs } = useStore();
+  const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [activeView, setActiveView] = useState<ViewKey>("conferencia");
   const [selected, setSelected] = useState<DatasetLinha | null>(null);
   /**
    * ⚠️ REGRA CRÍTICA DO SISTEMA
@@ -96,10 +100,11 @@ const Index = () => {
           </div>
 
           <nav className="space-y-1 text-sm">
-            <NavItem label="Conferência" active />
-            <NavItem label="Importação" />
-            <NavItem label="Destinatários" />
-            <NavItem label="Logs" />
+            {/* Ajuste estrutural: navegação lateral passa a controlar áreas operacionais sem roteamento completo nesta etapa. */}
+            <NavItem label="Conferência" icon={<ShieldCheck className="h-4 w-4" />} active={activeView === "conferencia"} onClick={() => setActiveView("conferencia")} />
+            <NavItem label="Importação" icon={<Upload className="h-4 w-4" />} active={activeView === "importacao"} onClick={() => setActiveView("importacao")} />
+            <NavItem label="Destinatários" icon={<Building2 className="h-4 w-4" />} active={activeView === "destinatarios"} onClick={() => setActiveView("destinatarios")} />
+            <NavItem label="Logs" icon={<ClipboardList className="h-4 w-4" />} active={activeView === "logs"} onClick={() => setActiveView("logs")} />
           </nav>
         </aside>
 
@@ -110,19 +115,76 @@ const Index = () => {
                 <h1 className="text-lg font-semibold">Conferência</h1>
                 <p className="text-xs text-muted-foreground">Conferência Inteligente de Notas Fiscais de Entrada</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setLogsOpen(true)}>
-                  <ScrollText className="h-4 w-4 mr-2" /> Logs
-                  {(errCount + warnCount) > 0 && <span className="ml-2 rounded-full bg-muted px-1.5 text-xs">{errCount + warnCount}</span>}
-                </Button>
+              {activeView === "conferencia" && (
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={() => setImportOpen(true)}>
+                    <Upload className="h-4 w-4 mr-2" /> Importar Arquivos
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>
+                    Exportar Excel
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>
+                    Gerar PDF
+                  </Button>
+                </div>
+              )}
+              {activeView === "importacao" && (
                 <Button size="sm" onClick={() => setImportOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" /> Importar Arquivos
                 </Button>
-              </div>
+              )}
             </div>
           </header>
 
           <main className="p-4 md:p-6 space-y-4">
+            {activeView === "importacao" && (
+              <Card className="p-4 space-y-4">
+                <h2 className="text-lg font-semibold">Importação de Arquivos</h2>
+                <p className="text-sm text-muted-foreground">Selecione o tipo de arquivo e siga os campos obrigatórios para iniciar a conferência.</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Card className="p-4">
+                    <h3 className="font-medium">Importação SEFAZ</h3>
+                    <p className="text-sm text-muted-foreground mt-1">Obrigatórios: XML/relatório SEFAZ, período e destinatário.</p>
+                  </Card>
+                  <Card className="p-4">
+                    <h3 className="font-medium">Importação ERP</h3>
+                    <p className="text-sm text-muted-foreground mt-1">Obrigatórios: arquivo ERP compatível e período equivalente ao lote SEFAZ.</p>
+                  </Card>
+                </div>
+                <Button onClick={() => setImportOpen(true)}>
+                  <Upload className="h-4 w-4 mr-2" /> Abrir modal de importação
+                </Button>
+              </Card>
+            )}
+            {activeView === "destinatarios" && (
+              <Card className="p-4 space-y-3">
+                <h2 className="text-lg font-semibold">Destinatários SEFAZ</h2>
+                <p className="text-sm text-muted-foreground">Cadastro de destinatários será implementado na próxima etapa.</p>
+                <Button variant="outline">Novo destinatário</Button>
+              </Card>
+            )}
+            {activeView === "logs" && (
+              <Card className="p-4 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Logs Operacionais</h2>
+                    <p className="text-sm text-muted-foreground">Total de avisos: {warnCount} · Total de erros: {errCount}</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => toast({ title: "Funcionalidade será implementada em etapa futura" })}>Limpar</Button>
+                </div>
+                <div className="space-y-2">
+                  {logs.map((log) => (
+                    <div key={`${log.data_hora}-${log.codigo_evento}`} className="rounded-md border border-border p-3 text-sm">
+                      <p className="font-medium">{log.mensagem_usuario}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{log.tipo} · {log.nivel} · {log.codigo_evento}</p>
+                    </div>
+                  ))}
+                  {logs.length === 0 && <p className="text-sm text-muted-foreground">Nenhum log operacional registrado.</p>}
+                </div>
+              </Card>
+            )}
+            {activeView === "conferencia" && (
+              <>
             {/* Ajuste visual: cards compactos para manter contexto sem competir com a tabela. */}
             <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
               <SummaryCard label="Total" value={stats.total} icon={<FileText className="h-4 w-4" />} tone="primary" />
@@ -238,6 +300,8 @@ const Index = () => {
                 </div>
               )}
             </Card>
+              </>
+            )}
           </main>
         </div>
       </div>
@@ -249,13 +313,17 @@ const Index = () => {
   );
 };
 
-function NavItem({ label, active = false }: { label: string; active?: boolean }) {
+function NavItem({ label, icon, active = false, onClick }: { label: string; icon: React.ReactNode; active?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={`w-full rounded-md px-3 py-2 text-left transition-colors ${active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
     >
-      {label}
+      <span className="inline-flex items-center gap-2">
+        {icon}
+        {label}
+      </span>
     </button>
   );
 }
