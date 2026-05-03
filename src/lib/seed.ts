@@ -45,10 +45,10 @@ export function seedDemoData() {
   s.ingestSefaz(notas, importacao, "demo_sefaz.xlsx");
 
   const erp = [
-    { chave_nfe: "35250400000000000000000000000000000000000001", inscricao_estadual: "110123456" },
-    { chave_nfe: "35250400000000000000000000000000000000000002", inscricao_estadual: "110123456" },
-    { chave_nfe: "35250400000000000000000000000000000000000004", inscricao_estadual: "220987654" },
-    { chave_nfe: "35250400000000000000000000000000000000000005" },
+    { chave_acesso: "35250400000000000000000000000000000000000001", inscricao_estadual_emitente: "110123456", payload_completo_erp: {}, chave_nfe: "35250400000000000000000000000000000000000001", inscricao_estadual: "110123456" },
+    { chave_acesso: "35250400000000000000000000000000000000000002", inscricao_estadual_emitente: "110123456", payload_completo_erp: {}, chave_nfe: "35250400000000000000000000000000000000000002", inscricao_estadual: "110123456" },
+    { chave_acesso: "35250400000000000000000000000000000000000004", inscricao_estadual_emitente: "220987654", payload_completo_erp: {}, chave_nfe: "35250400000000000000000000000000000000000004", inscricao_estadual: "220987654" },
+    { chave_acesso: "35250400000000000000000000000000000000000005", payload_completo_erp: {}, chave_nfe: "35250400000000000000000000000000000000000005" },
   ];
   s.ingestErp(erp, importacao, "demo_erp.xlsx");
 }
