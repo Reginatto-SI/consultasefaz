@@ -46,3 +46,11 @@ Pós-importação:
 - Sem stack trace técnico na UI operacional.
 - Sem observabilidade avançada.
 - Sem retenção longa.
+
+
+## 9. Escopo de logs na V1
+- Logs são locais e temporários.
+- Sem persistência em servidor.
+- Sem stack trace técnico na UI operacional.
+- Logs podem ser limpos junto com o estado local.
+- Logs servem para orientar o operador na sessão e no uso recente.

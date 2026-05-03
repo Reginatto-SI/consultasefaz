@@ -88,3 +88,13 @@ Regra obrigatória: qualquer novo PRD deve respeitar este dicionário.
 - O sistema é **multidestinatário**, não multiempresa no sentido organizacional.
 - Toda lógica principal gira em torno do **destinatário SEFAZ (CNPJ)**.
 - SEFAZ define o destinatário. ERP nunca define.
+
+
+## 10. Diretriz de arquitetura da V1 (obrigatória)
+- A V1 não possui banco de dados.
+- A V1 não possui backend.
+- A V1 não possui autenticação.
+- A V1 não possui tenant real.
+- `empresa_id` continua como identificador técnico local do destinatário fiscal, gerado no navegador.
+- `empresa_id` não representa tenant, organização, usuário nem registro persistente em banco.
+- “Multidestinatário” na V1 significa processar múltiplos CNPJs destinatários dentro dos arquivos importados, com estado em memória e/ou armazenamento local do navegador.

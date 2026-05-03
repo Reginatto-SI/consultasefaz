@@ -12,11 +12,11 @@ A SEFAZ é a fonte de verdade. O ERP somente confirma escrituração.
 ## Visão geral do fluxo operacional
 1. Importar arquivos SEFAZ e ERP.
 2. Normalizar e validar dados mínimos.
-3. Aplicar snapshot de entrada.
+3. Aplicar snapshot de entrada local (memória e/ou armazenamento local do navegador).
 4. Executar motor de conferência determinístico.
 5. Aplicar exceções manuais com prioridade máxima.
 6. Exibir resultados por destinatário e consolidado.
-7. Exibir logs operacionais para correção rápida.
+7. Exibir logs operacionais locais para correção rápida e exportar resultado final.
 
 ## Estrutura dos PRDs (fonte de verdade funcional)
 
@@ -62,7 +62,7 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 7. Ajustes de regras globais e validação final (PRD 01)
 
 ## Principais regras de negócio
-- Multiempresa desde a V1 (semântica operacional: multidestinatário, conforme PRD 00).
+- Multidestinatário desde a V1 (sem multi-tenant real, conforme PRD 00).
 - Destinatário da nota definido somente pela SEFAZ (CNPJ destinatário).
 - ERP não define destinatário.
 - Exceções ativas sobrescrevem regras automáticas.
@@ -73,17 +73,22 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 - Base SEFAZ como universo de conferência.
 - ERP como base complementar de matching.
 - Classificação por regras explícitas e sem heurística complexa.
-- Persistência curta de logs operacionais.
+- Persistência local e curta de logs operacionais.
 - Estrutura simples para facilitar evolução futura.
 
 ## Limites da V1
+- Ferramenta client-side executada no navegador.
+- Sem banco de dados na V1.
+- Sem backend na V1.
+- Sem autenticação na V1.
 - Sem integração automática com API da SEFAZ.
-- Sem histórico completo de snapshots/execuções.
+- Sem histórico completo de snapshots/execuções (sem persistência corporativa em servidor).
 - Sem auditoria avançada por usuário.
 - Sem workflow de aprovação de exceções.
 - Sem validações fiscais financeiras avançadas.
 
 ## Evoluções futuras
+- Banco de dados/backend apenas se necessário em evolução futura (V2+).
 - Histórico completo de execuções e auditoria.
 - Integrações externas automatizadas.
 - Regras fiscais complementares.
@@ -95,3 +100,13 @@ Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
 1. PRD 00
 2. PRD 01
 3. PRD 07
+
+
+## Regra conceitual oficial da V1
+> Ferramenta local de conferência rápida, com processamento client-side, sem banco de dados e sem persistência corporativa.
+
+Observações operacionais da V1:
+- Não há upload para servidor; os arquivos são lidos no navegador.
+- Estado pode existir em memória e/ou armazenamento local do navegador.
+- A manutenção dos dados depende da estratégia local e não possui garantia corporativa de retenção.
+- Exportação é o meio oficial para conservar o resultado da conferência.

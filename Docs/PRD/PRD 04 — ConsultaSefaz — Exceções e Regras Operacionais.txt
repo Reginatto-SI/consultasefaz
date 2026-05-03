@@ -49,3 +49,11 @@ Se a exceção existir mas a nota não estiver no snapshot SEFAZ atual:
 - PRD 03: ações de UI.
 - PRD 05: aplicação no algoritmo.
 - PRD 07: contrato estrutural da exceção.
+
+
+## 11. Persistência de exceções na V1
+- Exceções são locais na V1.
+- Podem existir somente durante a sessão ou no armazenamento local do navegador.
+- Não há garantia de persistência corporativa.
+- Se o usuário limpar dados locais, exceções podem ser apagadas.
+- Não há workflow, usuário autenticado ou auditoria por usuário na V1.
