@@ -1,7 +1,22 @@
+import { useState } from "react";
 import { Ban, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import type { Empresa, Excecao } from "@/lib/types";
+import { toast } from "sonner";
 
 type ExcecoesViewProps = {
   excecoes: Excecao[];
@@ -9,7 +24,34 @@ type ExcecoesViewProps = {
   onNovaExcecao: () => void;
 };
 
-export function ExcecoesView({ excecoes, empresas, onNovaExcecao }: ExcecoesViewProps) {
+export function ExcecoesView({ excecoes, empresas, onNovaExcecao: _onNovaExcecao }: ExcecoesViewProps) {
+  const [open, setOpen] = useState(false);
+  const [empresaId, setEmpresaId] = useState("");
+  const [chaveNfe, setChaveNfe] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [observacao, setObservacao] = useState("");
+  const [status, setStatus] = useState("Ativa");
+
+  const handleOpenModal = () => {
+    // Abertura apenas visual do modal; o fluxo de etapa futura acontece somente no Salvar.
+    setOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!motivo.trim()) {
+      toast.error("Motivo é obrigatório.");
+      return;
+    }
+    // Placeholder visual: a gestão real de exceções será implementada em etapa futura, sem persistência agora.
+    toast.info("Cadastro de exceções será implementado em etapa futura.");
+    setOpen(false);
+    setEmpresaId("");
+    setChaveNfe("");
+    setMotivo("");
+    setObservacao("");
+    setStatus("Ativa");
+  };
+
   return (
     <>
       <Card className="p-4 space-y-1">
@@ -23,12 +65,65 @@ export function ExcecoesView({ excecoes, empresas, onNovaExcecao }: ExcecoesView
       <Card className="p-4 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-medium">Lista de exceções</h3>
-          <Button variant="outline" size="sm" onClick={onNovaExcecao}>Nova exceção</Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" onClick={handleOpenModal}>Nova exceção</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Nova exceção operacional</DialogTitle>
+                <DialogDescription>Modal visual temporário para cadastro de exceção.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Destinatário</Label>
+                  <Select value={empresaId} onValueChange={setEmpresaId}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Selecione um destinatário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {empresas.map((empresa) => (
+                        <SelectItem key={empresa.id} value={empresa.id}>{empresa.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="chave-nfe">Chave NFe</Label>
+                  <Input id="chave-nfe" value={chaveNfe} onChange={(e) => setChaveNfe(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="motivo-excecao">Motivo *</Label>
+                  <Input id="motivo-excecao" value={motivo} onChange={(e) => setMotivo(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="obs-excecao">Observação</Label>
+                  <Textarea id="obs-excecao" value={observacao} onChange={(e) => setObservacao(e.target.value)} className="mt-1" rows={3} />
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ativa">Ativa</SelectItem>
+                      <SelectItem value="Revertida">Revertida</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSave}>Salvar</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
         {excecoes.length === 0 ? (
           <div className="rounded-md border border-dashed border-border p-8 text-center">
             <p className="font-medium">Nenhuma exceção cadastrada.</p>
-            <Button className="mt-3" size="sm" variant="outline" onClick={onNovaExcecao}>Nova exceção</Button>
+            <Button className="mt-3" size="sm" variant="outline" onClick={handleOpenModal}>Nova exceção</Button>
           </div>
         ) : (
           <div className="overflow-x-auto">
