@@ -37,27 +37,33 @@ const Index = () => {
   const [dataFim, setDataFim] = useState("");
   const [page, setPage] = useState(1);
 
-  const filtered = useMemo(() => {
+  // Base sem filtro de status para manter contadores dinâmicos dos botões rápidos
+  // respeitando os demais filtros (destinatário, período e chave).
+  const filteredWithoutStatus = useMemo(() => {
     return dataset.filter((l) => {
       if (empresaId !== "all" && l.empresa_id !== empresaId) return false;
-      if (status !== "all" && l.status_final !== status) return false;
       if (chave && !l.chave_nfe.includes(chave.replace(/\D/g, ""))) return false;
       if (dataIni && new Date(l.data_emissao) < new Date(dataIni)) return false;
       if (dataFim && new Date(l.data_emissao) > new Date(dataFim + "T23:59:59")) return false;
       return true;
     });
-  }, [dataset, empresaId, status, chave, dataIni, dataFim]);
+  }, [dataset, empresaId, chave, dataIni, dataFim]);
+
+  const filtered = useMemo(() => {
+    if (status === "all") return filteredWithoutStatus;
+    return filteredWithoutStatus.filter((l) => l.status_final === status);
+  }, [filteredWithoutStatus, status]);
 
   const stats = useMemo(() => {
-    const c = (s: StatusFinal) => filtered.filter((l) => l.status_final === s).length;
+    const c = (s: StatusFinal) => filteredWithoutStatus.filter((l) => l.status_final === s).length;
     return {
-      total: filtered.length,
+      total: filteredWithoutStatus.length,
       ok: c("OK"),
       faltantes: c("FALTANTE"),
       irregulares: c("IRREGULAR"),
       desconsideradas: c("DESCONSIDERADA"),
     };
-  }, [filtered]);
+  }, [filteredWithoutStatus]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

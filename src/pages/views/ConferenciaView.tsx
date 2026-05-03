@@ -61,6 +61,13 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     setPage,
     setSelected,
   } = props;
+  const quickStatusFilters: Array<{ value: string; label: string; count: number; tone: string; activeTone: string }> = [
+    { value: "all", label: "Todos", count: stats.total, tone: "border-border text-foreground hover:bg-muted", activeTone: "border-primary/40 bg-primary/10 text-primary ring-primary/30" },
+    { value: "FALTANTE", label: "Faltante", count: stats.faltantes, tone: "border-warning/40 text-warning hover:bg-warning/10", activeTone: "border-warning/50 bg-warning/15 text-warning ring-warning/25" },
+    { value: "OK", label: "OK", count: stats.ok, tone: "border-success/40 text-success hover:bg-success/10", activeTone: "border-success/50 bg-success/15 text-success ring-success/25" },
+    { value: "IRREGULAR", label: "Irregular", count: stats.irregulares, tone: "border-destructive/40 text-destructive hover:bg-destructive/10", activeTone: "border-destructive/50 bg-destructive/15 text-destructive ring-destructive/25" },
+    { value: "DESCONSIDERADA", label: "Desconsiderada", count: stats.desconsideradas, tone: "border-border text-muted-foreground hover:bg-muted", activeTone: "border-border bg-muted text-foreground ring-border" },
+  ];
 
   return (
     <>
@@ -74,7 +81,7 @@ export function ConferenciaView(props: ConferenciaViewProps) {
       </div>
 
       <Card className="p-3 md:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
           <div>
             <Label className="text-xs">Destinatário</Label>
             <Select value={empresaId} onValueChange={setEmpresaId}>
@@ -84,19 +91,6 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                 {empresas.map((e) => (
                   <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="OK">OK</SelectItem>
-                <SelectItem value="FALTANTE">Faltante</SelectItem>
-                <SelectItem value="IRREGULAR">Irregular</SelectItem>
-                <SelectItem value="DESCONSIDERADA">Desconsiderada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -117,9 +111,38 @@ export function ConferenciaView(props: ConferenciaViewProps) {
           </div>
           <Button variant="outline" size="sm" className="h-9" onClick={clearFilters}>Limpar filtros</Button>
         </div>
+        <div className="mt-3">
+          <Label className="text-xs">Status</Label>
+          {/* Botões rápidos filtram por status usando somente o resultado final do motor,
+              sem exibir status interno IGNORADA na UI principal. */}
+          <div className="mt-1 flex gap-2 overflow-x-auto pb-1">
+            {quickStatusFilters.map((filter) => {
+              const isActive = status === filter.value;
+              return (
+                <Button
+                  key={filter.value}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStatus(filter.value)}
+                  className={`h-9 whitespace-nowrap rounded-md transition-colors ${filter.tone} ${isActive ? `ring-2 ${filter.activeTone}` : "bg-background"}`}
+                >
+                  <span>{filter.label}</span>
+                  <span className="ml-1.5 rounded-full bg-background/90 px-2 py-0.5 text-xs font-semibold tabular-nums">
+                    {filter.count}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        </div>
       </Card>
 
       <Card className="overflow-hidden">
+        {/* Mantém claro o total efetivamente exibido na tabela após aplicação do status e demais filtros. */}
+        <div className="px-4 py-2.5 border-b border-border text-sm text-muted-foreground">
+          Exibindo <span className="font-semibold text-foreground tabular-nums">{filteredLength}</span> registros após filtros
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
