@@ -36,6 +36,7 @@ interface State {
   clearLogs: () => void;
 
   rerun: () => void;
+  clearAnalysisData: () => void;
   resetAll: () => void;
 }
 
@@ -173,6 +174,16 @@ export const useStore = create<State>()(
         });
         set({ dataset, ultimaExecucao: ref });
       },
+      // Limpa somente o snapshot/análise atual; exceções locais são preservadas por regra de negócio.
+      clearAnalysisData: () =>
+        set({
+          empresas: [],
+          notas: [],
+          erp: [],
+          logs: [],
+          dataset: [],
+          ultimaExecucao: undefined,
+        }),
       resetAll: () =>
         set({
           empresas: [],
