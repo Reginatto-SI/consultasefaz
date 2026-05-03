@@ -243,3 +243,14 @@ Restrições explícitas da V1:
 - `payload_completo` deve manter integralmente os dados de entrada do relatório SEFAZ para rastreabilidade operacional.
 
 - O PRD 09 define o layout oficial do relatório RFT006/ERP e os campos estruturais de confirmação de escrituração.
+
+
+## 11. Esclarecimentos mandatórios de arquitetura da V1
+- As entidades deste PRD são contratos de dados para memória e/ou armazenamento local do navegador; não são tabelas de banco na V1.
+- `id`, `empresa_id`, `importacao_id` e `referencia_execucao` são identificadores locais gerados no navegador.
+- É proibido criar migrations e tabelas na V1.
+- O pipeline oficial roda localmente no navegador.
+- O snapshot é local.
+- O payload completo das importações permanece no estado local.
+- A V1 não possui histórico completo nem persistência corporativa em servidor.
+- Em evolução futura (V2+), estes contratos podem ser convertidos em modelo persistente, fora do escopo da V1.

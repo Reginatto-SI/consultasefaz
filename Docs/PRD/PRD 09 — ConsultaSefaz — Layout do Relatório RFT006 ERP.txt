@@ -133,3 +133,8 @@ Devem permitir continuidade com registro no PRD 06:
 - Não contempla múltiplos layouts RFT006 simultâneos sem versionamento explícito.
 - Não aplica heurística para dedução de colunas fora do mapeamento base.
 - Mudanças de layout devem ser incorporadas via revisão controlada deste PRD 09 e PRDs dependentes.
+
+
+## 18. Execução de parsing na V1
+- O parsing do layout RFT006/ERP ocorre localmente no navegador.
+- O arquivo RFT006/ERP não é enviado para backend na V1.

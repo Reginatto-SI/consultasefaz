@@ -86,3 +86,11 @@ Contrato de saída: PRD 07.
 - Sem histórico completo de execuções.
 - Sem processamento distribuído.
 - Sem validações fiscais financeiras avançadas.
+
+
+## 10. Execução local do motor (V1)
+- O motor roda no navegador (client-side).
+- O motor não depende de banco de dados.
+- O motor consome arrays/estado local estruturado pela importação.
+- O resultado é recalculado localmente a cada disparo de execução.
+- O determinismo permanece obrigatório.

@@ -72,3 +72,11 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 - PRD 06: mensagens de erro/aviso.
 - PRD 07: contrato do dataset exibido.
 - PRD 08: origem semântica dos campos de Emitente e Destinatário no layout SEFAZ.
+
+
+## 11. Diretrizes de experiência local (V1)
+- Estado vazio obrigatório quando não houver dados importados.
+- A interface deve deixar explícito que a conferência atual é local (navegador).
+- Ações de exportação têm prioridade de destaque na V1.
+- Se houver persistência local, oferecer ação simples para limpar dados locais.
+- Não criar telas de banco de dados, conta, login, usuário ou histórico remoto na V1.

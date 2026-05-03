@@ -69,3 +69,13 @@ Observação: status IGNORADA pode existir internamente no motor (PRD 05), sem e
 - Integrações externas.
 - Auditoria avançada.
 - Regras fiscais complementares.
+
+
+## 10. Escopo técnico explícito da V1
+- Sistema client-side executado no navegador.
+- Processamento local no navegador (sem backend).
+- Sem banco de dados na V1.
+- Sem autenticação na V1.
+- Sem persistência corporativa em servidor.
+- Exportação é o mecanismo principal para guardar o resultado da conferência.
+- Histórico completo permanece fora de escopo na V1.

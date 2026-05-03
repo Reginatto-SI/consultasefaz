@@ -143,3 +143,7 @@ Devem permitir continuidade com registro no PRD 06:
 - `status_sefaz_invalido` representa nota cancelada, denegada, inutilizada, inexistente ou equivalente no relatório SEFAZ.
 - Se surgir status textual desconhecido, registrar aviso operacional e tratar como inválido por segurança, salvo regra futura explícita em contrário.
 
+
+## 19. Execução de parsing na V1
+- O parsing do layout SEFAZ ocorre localmente no navegador.
+- O arquivo SEFAZ não é enviado para backend na V1.

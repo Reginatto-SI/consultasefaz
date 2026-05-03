@@ -64,3 +64,14 @@ Mensagens e histórico curto seguem PRD 06.
 Regras adicionais obrigatórias:
 - Todos os dados lidos do relatório SEFAZ devem ser preservados em `payload_completo`, mesmo quando não fizerem parte dos campos estruturais mínimos.
 - Todos os dados lidos do relatório RFT006 devem ser preservados em `payload_completo_erp` (ou estrutura equivalente), mesmo quando não fizerem parte dos campos estruturais mínimos.
+
+
+## 10. Regras de execução local (V1)
+- A importação ocorre no navegador (client-side).
+- Os arquivos são lidos localmente na máquina do usuário.
+- Não há upload para servidor na V1.
+- O snapshot de entrada é local, em memória e/ou armazenamento local do navegador.
+- O snapshot SEFAZ substitui localmente as notas dos destinatários impactados.
+- O snapshot ERP/RFT006 substitui localmente a base complementar vigente.
+- Ao limpar dados locais ou reiniciar conforme estratégia local, o usuário deve importar novamente.
+- Exportação é recomendada como meio oficial para guardar o resultado final da conferência.
