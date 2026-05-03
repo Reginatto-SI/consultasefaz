@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
+import { getNatureza } from "@/lib/conferencia/helpers";
 import type { DatasetLinha, Empresa, StatusFinal } from "@/lib/types";
 
 type ConferenciaStats = {
@@ -166,7 +167,11 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                   </td>
                 </tr>
               )}
-              {pageData.map((l) => (
+              {pageData.map((l) => {
+                // A tabela principal reaproveita a mesma resolução de Natureza usada no PDF para evitar divergência visual entre os dois pontos.
+                // String vazia também deve cair no fallback visual para manter consistência com a coluna e com o PDF.
+                const natureza = getNatureza(l)?.trim() || "—";
+                return (
                 <tr key={l.empresa_id + l.chave_nfe} className="border-t border-border hover:bg-muted/40 cursor-pointer" onClick={() => setSelected(l)}>
                   <td className="px-3 py-2.5">
                     <div className="flex flex-col gap-1">
@@ -192,11 +197,10 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                   <td className="px-3 py-2.5 align-top">
                     {/* Campos com corte visual precisam de hover para preservar a conferência completa do usuário na cobrança. */}
                     <p
-                      className="leading-tight overflow-hidden"
-                      style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
-                      title={getNatureza(l) ?? "—"}
+                      className="max-w-[170px] truncate leading-tight"
+                      title={natureza}
                     >
-                      {getNatureza(l) ?? "—"}
+                      {natureza}
                     </p>
                   </td>
                   <td className="px-3 py-2.5 align-top" title={getEmitenteTitle(l)}>
@@ -212,7 +216,7 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                     </Button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -292,14 +296,6 @@ function getDestinatarioTitle(linha: DatasetLinha) {
   const nome = getDestinatarioNome(linha);
   const documento = getDestinatarioDocumento(linha);
   return documento ? `${nome} • ${documento}` : nome;
-}
-
-function getNatureza(linha: DatasetLinha) {
-  return linha.payload_resumo_tabela?.natureza_operacao
-    ?? linha.payload_completo_drawer?.natureza
-    ?? linha.payload_completo_drawer?.natureza_operacao
-    ?? linha.payload_completo_drawer?.operacao
-    ?? null;
 }
 
 function getEmitenteNome(linha: DatasetLinha) {
