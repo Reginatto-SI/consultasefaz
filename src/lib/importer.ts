@@ -5,50 +5,17 @@ import {
   normalizeIE,
   normalizeStatus,
 } from "@/lib/engine";
-import type { NotaSefaz, RegistroErp, StatusSefaz } from "@/lib/types";
+import type { NotaSefaz, RegistroErp } from "@/lib/types";
 
 export type TipoImportacao = "SEFAZ" | "ERP";
-
-const SEFAZ_ALIASES: Record<string, string[]> = {
-  chave: ["chave", "chave nfe", "chave_nfe", "chave de acesso", "chave_acesso", "chaveacesso"],
-  cnpj_dest: ["cnpj destinatario", "cnpj_destinatario", "cnpj dest", "cnpj_dest", "destinatario cnpj"],
-  status: ["status", "situacao", "status sefaz", "status_sefaz"],
-  data: ["data emissao", "data_emissao", "dt emissao", "emissao", "data"],
-  ie_dest: ["ie destinatario", "ie_destinatario", "inscricao estadual destinatario", "ie dest"],
-  emitente: ["emitente", "razao social emitente", "razao_social_emitente", "fornecedor"],
-  numero: ["numero", "nr nota", "numero nota", "nf"],
-  valor: ["valor", "valor total", "valor_total", "vl total"],
-};
-
-const ERP_ALIASES: Record<string, string[]> = {
-  chave: ["chave", "chave nfe", "chave_nfe", "chave de acesso", "chave_acesso"],
-  ie: ["ie", "inscricao estadual", "inscricao_estadual", "ie destinatario"],
-};
-
-function normHeader(s: any): string {
-  return String(s ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
-function findCol(headers: string[], aliases: string[]): number {
-  const norm = headers.map(normHeader);
-  for (const a of aliases) {
-    const idx = norm.findIndex((h) => h === a || h.includes(a));
-    if (idx >= 0) return idx;
-  }
-  return -1;
-}
 
 function detectHeaderRow(rows: any[][]): number {
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const row = rows[i] || [];
     const filled = row.filter((c) => c !== null && c !== undefined && String(c).trim() !== "").length;
     if (filled >= 2) {
-      const txt = row.map(normHeader).join(" ");
-      if (/(chave|status|cnpj|inscricao|emissao|nfe)/.test(txt)) return i;
+      const txt = row.map((c) => String(c ?? "").toLowerCase()).join(" ");
+      if (/(chave|status|cnpj|inscricao|emissao|nfe|nota)/.test(txt)) return i;
     }
   }
   return 0;
@@ -58,12 +25,10 @@ function parseDate(v: any): string {
   if (!v) return new Date().toISOString();
   if (v instanceof Date) return v.toISOString();
   if (typeof v === "number") {
-    // excel serial
     const d = XLSX.SSF.parse_date_code(v);
     if (d) return new Date(Date.UTC(d.y, d.m - 1, d.d, d.H || 0, d.M || 0, d.S || 0)).toISOString();
   }
   const s = String(v).trim();
-  // try dd/mm/yyyy
   const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
   if (br) {
     const [, d, m, y] = br;
@@ -108,90 +73,153 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   const dataRows = rows.slice(headerRow + 1);
 
   if (tipo === "SEFAZ") {
-    const colChave = findCol(headers, SEFAZ_ALIASES.chave);
-    const colCnpj = findCol(headers, SEFAZ_ALIASES.cnpj_dest);
-    const colStatus = findCol(headers, SEFAZ_ALIASES.status);
-    const colData = findCol(headers, SEFAZ_ALIASES.data);
-    const colIE = findCol(headers, SEFAZ_ALIASES.ie_dest);
-    const colEmit = findCol(headers, SEFAZ_ALIASES.emitente);
-    const colNum = findCol(headers, SEFAZ_ALIASES.numero);
-    const colVal = findCol(headers, SEFAZ_ALIASES.valor);
+    // PRD 08: layout oficial por posição (base 0).
+    const COL_A_DATA_EMISSAO = 0;
+    const COL_C_NUMERO_NF = 2;
+    const COL_D_CHAVE_NFE = 3;
+    const COL_I_STATUS = 8;
+    const COL_J_EMITENTE_CNPJ = 9;
+    const COL_K_EMITENTE_RAZAO = 10;
+    const COL_L_IE_EMITENTE = 11; // PRD 08: coluna L = IE do emitente
+    const COL_O_DEST_CNPJ = 14; // PRD 08: coluna O = CNPJ destinatário
+    const COL_P_DEST_IE = 15;
+    const COL_Q_DEST_RAZAO = 16;
+    const COL_Y_VALOR_TOTAL = 24;
 
-    const missing: string[] = [];
-    if (colChave < 0) missing.push("chave_nfe");
-    if (colCnpj < 0) missing.push("cnpj_destinatario");
-    if (colStatus < 0) missing.push("status_sefaz");
-    if (colData < 0) missing.push("data_emissao");
-    if (missing.length) {
-      result.errors.push(`Colunas obrigatórias ausentes: ${missing.join(", ")}.`);
+    if (headers.length <= COL_O_DEST_CNPJ || headers.length <= COL_D_CHAVE_NFE || headers.length <= COL_I_STATUS) {
+      result.errors.push("Cabeçalho incompatível com layout SEFAZ base (PRD 08).");
       return result;
     }
 
     const notas: ParseResult["notasSefaz"] = [];
     let descartadas = 0;
+
     for (const r of dataRows) {
       if (!r) continue;
-      const chave = normalizeChave(String(r[colChave] ?? ""));
-      const cnpj = normalizeCnpj(String(r[colCnpj] ?? ""));
-      const status = normalizeStatus(String(r[colStatus] ?? ""));
-      if (!chave || !cnpj || !status) {
+      const chave = normalizeChave(String(r[COL_D_CHAVE_NFE] ?? ""));
+      const destCnpj = normalizeCnpj(String(r[COL_O_DEST_CNPJ] ?? ""));
+      const status = normalizeStatus(String(r[COL_I_STATUS] ?? ""));
+      const ieEmitente = normalizeIE(String(r[COL_L_IE_EMITENTE] ?? ""));
+      if (!chave || !destCnpj || !ieEmitente) {
         descartadas++;
         continue;
       }
+
+      const payload: Record<string, any> = {};
+      headers.forEach((h, idx) => {
+        payload[h || `col_${idx}`] = r[idx] ?? null;
+      });
+
+      payload.chave_nfe = chave;
+      payload.status_sefaz = status;
+      payload.emitente_inscricao_estadual = ieEmitente;
+      payload.destinatario_cnpj_cpf = destCnpj;
+
       notas!.push({
         chave_nfe: chave,
-        status_sefaz: status as StatusSefaz,
-        data_emissao: parseDate(r[colData]),
-        inscricao_estadual_destinatario: colIE >= 0 ? normalizeIE(String(r[colIE] ?? "")) : undefined,
+        status_sefaz: status,
+        data_emissao: parseDate(r[COL_A_DATA_EMISSAO]),
+        emitente_inscricao_estadual: ieEmitente,
+        emitente_cnpj_cpf: normalizeCnpj(String(r[COL_J_EMITENTE_CNPJ] ?? "")) || undefined,
+        emitente_razao_social: String(r[COL_K_EMITENTE_RAZAO] ?? "").trim() || undefined,
+        destinatario_cnpj_cpf: destCnpj,
+        destinatario_razao_social: String(r[COL_Q_DEST_RAZAO] ?? "").trim() || undefined,
+        inscricao_estadual_destinatario: normalizeIE(String(r[COL_P_DEST_IE] ?? "")) || undefined,
         payload_completo: {
-          chave_nfe: chave,
-          cnpj_destinatario: cnpj,
-          status: status,
-          emitente: colEmit >= 0 ? r[colEmit] : undefined,
-          numero: colNum >= 0 ? r[colNum] : undefined,
-          valor_total: colVal >= 0 ? r[colVal] : undefined,
-          ie_destinatario: colIE >= 0 ? r[colIE] : undefined,
+          ...payload,
+          numero_nota_fiscal: r[COL_C_NUMERO_NF] ?? null,
+          valor_total_nota_fiscal: r[COL_Y_VALOR_TOTAL] ?? null,
         },
-        cnpj_destinatario: cnpj,
+        cnpj_destinatario: destCnpj,
       });
     }
-    if (descartadas > 0) result.warnings.push(`${descartadas} linha(s) descartada(s) por dados inválidos.`);
+
+    if (descartadas > 0) result.warnings.push(`${descartadas} linha(s) SEFAZ descartada(s) por ausência de chave, destinatário ou IE do emitente.`);
     if (!notas!.length) {
       result.errors.push("Nenhuma linha válida encontrada.");
       return result;
     }
+
+    const statusDesconhecido = notas!.filter((n) => n.status_sefaz === "desconhecido").length;
+    if (statusDesconhecido > 0) {
+      result.warnings.push(`${statusDesconhecido} linha(s) SEFAZ com status desconhecido tratado como inválido.`);
+    }
+
     result.notasSefaz = notas;
     result.ok = true;
     return result;
-  } else {
-    const colChave = findCol(headers, ERP_ALIASES.chave);
-    const colIE = findCol(headers, ERP_ALIASES.ie);
-    if (colChave < 0) {
-      result.errors.push("Coluna obrigatória ausente: chave_nfe.");
-      return result;
-    }
-    const regs: ParseResult["registrosErp"] = [];
-    let descartadas = 0;
-    let semIE = 0;
-    for (const r of dataRows) {
-      if (!r) continue;
-      const chave = normalizeChave(String(r[colChave] ?? ""));
-      if (!chave) {
-        descartadas++;
-        continue;
-      }
-      const ie = colIE >= 0 ? normalizeIE(String(r[colIE] ?? "")) : undefined;
-      if (!ie) semIE++;
-      regs!.push({ chave_nfe: chave, inscricao_estadual: ie });
-    }
-    if (descartadas) result.warnings.push(`${descartadas} linha(s) sem chave NFe.`);
-    if (semIE) result.warnings.push(`${semIE} linha(s) sem IE — matching apenas por chave.`);
-    if (!regs!.length) {
-      result.errors.push("Nenhuma linha válida encontrada.");
-      return result;
-    }
-    result.registrosErp = regs;
-    result.ok = true;
+  }
+
+  // PRD 09: layout oficial por posição (base 0).
+  const COL_G_DATA_EMISSAO_ERP = 6;
+  const COL_I_NUMERO_NF = 8;
+  const COL_L_CFOP = 11;
+  const COL_T_VALOR_TOTAL = 19;
+  const COL_Y_EMIT_CNPJ = 24;
+  const COL_Z_IE_EMITENTE = 25; // PRD 09: coluna Z = IE do emitente no RFT006
+  const COL_AA_EMIT_RAZAO = 26;
+  const COL_AC_CHAVE = 28; // PRD 09: coluna AC = chave de acesso
+
+  if (headers.length <= COL_AC_CHAVE || headers.length <= COL_Z_IE_EMITENTE) {
+    result.errors.push("Cabeçalho incompatível com layout RFT006 base (PRD 09).");
     return result;
   }
+
+  const regs: ParseResult["registrosErp"] = [];
+  let semChave = 0;
+  let semIE = 0;
+
+  for (const r of dataRows) {
+    if (!r) continue;
+
+    const chave = normalizeChave(String(r[COL_AC_CHAVE] ?? ""));
+    const ieEmitente = normalizeIE(String(r[COL_Z_IE_EMITENTE] ?? ""));
+
+    const payload: Record<string, any> = {};
+    headers.forEach((h, idx) => {
+      payload[h || `col_${idx}`] = r[idx] ?? null;
+    });
+
+    if (!chave) {
+      semChave++;
+      regs!.push({
+        chave_acesso: "",
+        inscricao_estadual_emitente: ieEmitente,
+        payload_completo_erp: payload,
+      });
+      continue;
+    }
+
+    if (!ieEmitente) semIE++;
+
+    regs!.push({
+      chave_acesso: chave,
+      inscricao_estadual_emitente: ieEmitente,
+      payload_completo_erp: {
+        ...payload,
+        emitente_cnpj_cpf: normalizeCnpj(String(r[COL_Y_EMIT_CNPJ] ?? "")) || null,
+        emitente_razao_social: String(r[COL_AA_EMIT_RAZAO] ?? "").trim() || null,
+        numero_nota_fiscal: r[COL_I_NUMERO_NF] ?? null,
+        data_emissao_erp: parseDate(r[COL_G_DATA_EMISSAO_ERP]),
+        cfop: r[COL_L_CFOP] ?? null,
+        valor_total: r[COL_T_VALOR_TOTAL] ?? null,
+      },
+      // Compatibilidade legada (sem uso no motor novo).
+      chave_nfe: chave,
+      inscricao_estadual: ieEmitente,
+    });
+  }
+
+  if (semChave > 0) result.warnings.push(`${semChave} linha(s) RFT006 sem chave_acesso (inelegíveis para matching).`);
+  if (semIE > 0) result.warnings.push(`${semIE} linha(s) RFT006 com chave_acesso sem inscricao_estadual_emitente (inelegíveis para matching).`);
+
+  const elegiveis = regs!.filter((r) => !!r.chave_acesso && !!r.inscricao_estadual_emitente);
+  if (!regs!.length || !elegiveis.length) {
+    result.errors.push("Nenhuma linha elegível para matching encontrada no RFT006.");
+    return result;
+  }
+
+  result.registrosErp = regs;
+  result.ok = true;
+  return result;
 }

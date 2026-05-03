@@ -79,7 +79,7 @@ export function DetailDrawer({
             <h3 className="font-semibold text-sm text-foreground mb-3">Informações</h3>
             <dl className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <dt className="text-muted-foreground text-xs">Empresa</dt>
+                <dt className="text-muted-foreground text-xs">Destinatário</dt>
                 <dd className="font-medium">{linha.empresa_nome}</dd>
               </div>
               <div>
@@ -89,6 +89,22 @@ export function DetailDrawer({
               <div>
                 <dt className="text-muted-foreground text-xs">Encontrada no ERP</dt>
                 <dd className="font-medium">{linha.encontrada_no_erp ? "Sim" : "Não"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">Resultado matching</dt>
+                <dd className="font-medium">{linha.resultado_matching}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">Chave existe no ERP</dt>
+                <dd className="font-medium">{linha.chave_existe_no_erp ? "Sim" : "Não"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">IE emitente confere</dt>
+                <dd className="font-medium">{linha.ie_emitente_confere ? "Sim" : "Não"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">Motivo divergência</dt>
+                <dd className="font-medium">{linha.motivo_divergencia ?? "—"}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground text-xs">Data emissão</dt>
