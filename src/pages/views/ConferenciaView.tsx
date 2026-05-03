@@ -61,12 +61,14 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     setPage,
     setSelected,
   } = props;
+  // Padronização visual intencional: filtros usam azul sólido oficial mantendo semântica e comportamento.
+  // O estado ativo recebe destaque sutil extra para leitura rápida do filtro selecionado.
   const quickStatusFilters: Array<{ value: string; label: string; count: number; tone: string; activeTone: string }> = [
-    { value: "all", label: "Todos", count: stats.total, tone: "border-border text-foreground hover:bg-muted", activeTone: "border-primary/40 bg-primary/10 text-primary ring-primary/30" },
-    { value: "FALTANTE", label: "Faltante", count: stats.faltantes, tone: "border-warning/40 text-warning hover:bg-warning/10", activeTone: "border-warning/50 bg-warning/15 text-warning ring-warning/25" },
-    { value: "OK", label: "OK", count: stats.ok, tone: "border-success/40 text-success hover:bg-success/10", activeTone: "border-success/50 bg-success/15 text-success ring-success/25" },
-    { value: "IRREGULAR", label: "Irregular", count: stats.irregulares, tone: "border-destructive/40 text-destructive hover:bg-destructive/10", activeTone: "border-destructive/50 bg-destructive/15 text-destructive ring-destructive/25" },
-    { value: "DESCONSIDERADA", label: "Desconsiderada", count: stats.desconsideradas, tone: "border-border text-muted-foreground hover:bg-muted", activeTone: "border-border bg-muted text-foreground ring-border" },
+    { value: "all", label: "Todos", count: stats.total, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
+    { value: "FALTANTE", label: "Faltante", count: stats.faltantes, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
+    { value: "OK", label: "OK", count: stats.ok, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
+    { value: "IRREGULAR", label: "Irregular", count: stats.irregulares, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
+    { value: "DESCONSIDERADA", label: "Desconsiderada", count: stats.desconsideradas, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
   ];
 
   return (
@@ -125,10 +127,10 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => setStatus(filter.value)}
-                  className={`h-9 whitespace-nowrap rounded-md transition-colors ${filter.tone} ${isActive ? `ring-2 ${filter.activeTone}` : "bg-background"}`}
+                  className={`h-9 whitespace-nowrap rounded-md transition-all ${filter.tone} ${isActive ? `ring-2 ${filter.activeTone}` : ""}`}
                 >
                   <span>{filter.label}</span>
-                  <span className="ml-1.5 rounded-full bg-background/90 px-2 py-0.5 text-xs font-semibold tabular-nums">
+                  <span className="ml-1.5 rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary-foreground">
                     {filter.count}
                   </span>
                 </Button>

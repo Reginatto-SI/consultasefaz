@@ -1,11 +1,12 @@
 import { cn } from "@/lib/utils";
 import type { StatusFinal } from "@/lib/types";
 
+// Padronização visual intencional: badge usa azul sólido oficial sem alterar semântica textual.
 const STYLES: Record<StatusFinal, string> = {
-  OK: "bg-success/15 text-success border-success/30",
-  FALTANTE: "bg-warning/15 text-warning border-warning/30",
-  IRREGULAR: "bg-destructive/15 text-destructive border-destructive/30",
-  DESCONSIDERADA: "bg-muted text-muted-foreground border-border",
+  OK: "bg-primary text-primary-foreground border-primary",
+  FALTANTE: "bg-primary text-primary-foreground border-primary",
+  IRREGULAR: "bg-primary text-primary-foreground border-primary",
+  DESCONSIDERADA: "bg-primary text-primary-foreground border-primary",
 };
 
 export function StatusBadge({ status }: { status: StatusFinal }) {
