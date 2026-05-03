@@ -70,9 +70,16 @@ export function rodarMotor(input: MotorInput): DatasetLinha[] {
   }
 
   const excIdx = new Map<string, Excecao>();
+  const excByChave = new Map<string, Excecao>();
   for (const ex of excecoes) {
     if (!ex.ativa) continue;
-    excIdx.set(`${ex.empresa_id}|${normalizeChave(ex.chave_nfe)}`, ex);
+    const chaveN = normalizeChave(ex.chave_nfe);
+    if (!chaveN) continue;
+
+    excIdx.set(`${ex.empresa_id}|${chaveN}`, ex);
+    // Regra de negócio: exceção ativa tem precedência máxima sobre qualquer classificação automática.
+    // Na V1, o empresa_id é local (destinatário) e pode mudar após limpar/reimportar; por isso o fallback por chave.
+    if (!excByChave.has(chaveN)) excByChave.set(chaveN, ex);
   }
 
   const linhas: DatasetLinha[] = [];
@@ -104,7 +111,7 @@ export function rodarMotor(input: MotorInput): DatasetLinha[] {
       }
     }
 
-    const ex = excIdx.get(`${n.empresa_id}|${chave}`);
+    const ex = excIdx.get(`${n.empresa_id}|${chave}`) ?? excByChave.get(chave);
     const statusValido = STATUS_VALIDOS.includes(n.status_sefaz);
 
     let status_final: StatusFinal;
