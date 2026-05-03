@@ -19,6 +19,10 @@ export interface Empresa {
   nome: string;
   cnpj: string;
   inscricao_estadual?: string;
+  razao_social?: string;
+  perfil?: string;
+  tributacao?: string;
+  destinatario_apelido?: string;
 }
 
 export interface NotaSefaz {

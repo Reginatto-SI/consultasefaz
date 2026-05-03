@@ -8,7 +8,8 @@ import type {
   NotaSefaz,
   RegistroErp,
 } from "@/lib/types";
-import { rodarMotor, normalizeChave } from "@/lib/engine";
+import { rodarMotor, normalizeChave, normalizeCnpj } from "@/lib/engine";
+import { findDestinatarioConhecidoByDocumento } from "@/config/destinatariosConhecidos";
 
 const uid = () => Math.random().toString(36).slice(2, 11);
 
@@ -54,14 +55,32 @@ export const useStore = create<State>()(
         return novo;
       },
       upsertEmpresaByCnpj: (cnpj, nome, ie) => {
-        const cnpjN = (cnpj || "").replace(/\D/g, "");
+        const cnpjN = normalizeCnpj(cnpj || "");
+        const known = findDestinatarioConhecidoByDocumento(cnpjN);
         const existing = get().empresas.find((e) => e.cnpj === cnpjN);
-        if (existing) return existing;
+        if (existing) {
+          if (!known) return existing;
+          const atualizado: Empresa = {
+            ...existing,
+            nome: known.apelido,
+            inscricao_estadual: known.ie,
+            razao_social: known.razao_social,
+            perfil: known.perfil,
+            tributacao: known.tributacao,
+            destinatario_apelido: known.apelido,
+          };
+          set((s) => ({ empresas: s.empresas.map((e) => (e.id === existing.id ? atualizado : e)) }));
+          return atualizado;
+        }
         const novo: Empresa = {
           id: uid(),
-          nome: nome || `Empresa ${cnpjN.slice(0, 8) || "?"}`,
+          nome: known?.apelido || nome || `Empresa ${cnpjN.slice(0, 8) || "?"}`,
           cnpj: cnpjN,
-          inscricao_estadual: ie,
+          inscricao_estadual: known?.ie || ie,
+          razao_social: known?.razao_social || nome,
+          perfil: known?.perfil,
+          tributacao: known?.tributacao,
+          destinatario_apelido: known?.apelido,
         };
         set((s) => ({ empresas: [...s.empresas, novo] }));
         return novo;
