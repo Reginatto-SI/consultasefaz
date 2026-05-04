@@ -9,6 +9,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getNatureza } from "@/lib/conferencia/helpers";
+import { formatFiscalDateBR } from "@/lib/fiscalDate";
 import type { DatasetLinha, Empresa, StatusFinal } from "@/lib/types";
 
 type ConferenciaStats = {
@@ -260,11 +261,7 @@ function getNumeroNota(linha: DatasetLinha) {
 }
 
 function formatDataEmissao(linha: DatasetLinha) {
-  const rawDate = linha.data_emissao;
-  if (!rawDate) return "—";
-  const parsed = new Date(rawDate);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return parsed.toLocaleDateString("pt-BR");
+  return formatFiscalDateBR(linha.data_emissao);
 }
 
 function renderMotivoIE(linha: DatasetLinha) {

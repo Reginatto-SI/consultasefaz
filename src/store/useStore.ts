@@ -114,6 +114,11 @@ export const useStore = create<State>()(
       ingestErp: (rows, importacao_id, arquivo) => {
         const novos: RegistroErp[] = rows.map((r) => ({ ...r, id: uid(), importacao_id }));
         set({ erp: novos });
+        const chaveSet = new Set(
+          novos
+            .map((r) => normalizeChave(r.chave_acesso || r.chave_nfe || ""))
+            .filter(Boolean)
+        );
         // PRD 09: linha com chave sem IE é inelegível e deve gerar aviso resumido.
         const semIE = novos.filter((r) => !!r.chave_acesso && !r.inscricao_estadual_emitente).length;
         if (semIE > 0) {
@@ -125,7 +130,16 @@ export const useStore = create<State>()(
             mensagem_usuario: `${semIE} registro(s) RFT006 com chave sem IE do emitente (inelegíveis para matching).`,
           });
         }
+        const t0 = performance.now();
         get().rerun();
+        const motorMs = Math.round(performance.now() - t0);
+        get().addLog({
+          tipo: "processamento",
+          nivel: "aviso",
+          arquivo_nome: arquivo,
+          codigo_evento: "ERP_INDEX_MOTOR",
+          mensagem_usuario: `Snapshot ERP atualizado com ${novos.length} registro(s) e índice por chave com ${chaveSet.size} chave(s) única(s). Motor executado em ~${motorMs}ms.`,
+        });
       },
 
       addExcecao: (e) => {
