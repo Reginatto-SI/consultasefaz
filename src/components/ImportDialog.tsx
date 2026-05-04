@@ -3,18 +3,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, XCircle, Loader2 } from "lucide-react";
 import { parseFile, type ParseResult, type TipoImportacao } from "@/lib/importer";
 import { useStore } from "@/store/useStore";
 import { toast } from "sonner";
 
 type WizardStep = 1 | 2 | 3;
 
+// Etapas mostradas no modal para o usuário enxergar progresso e nunca ver "Processando..." preso.
+type StageMsg =
+  | "idle"
+  | "Lendo arquivo..."
+  | "Validando layout..."
+  | "Processando linhas..."
+  | "Atualizando conferência..."
+  | "Finalizado com sucesso"
+  | "Erro no arquivo";
+
 function maskChave(chave: string): string {
   if (!chave) return "";
   if (chave.length <= 10) return chave;
   return `${chave.slice(0, 6)}...${chave.slice(-4)}`;
 }
+
+// Pequeno yield para o React conseguir pintar a próxima etapa antes do trabalho pesado.
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
@@ -23,6 +36,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [sefazResults, setSefazResults] = useState<ParseResult[]>([]);
   const [erpResults, setErpResults] = useState<ParseResult[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [stage, setStage] = useState<StageMsg>("idle");
   const store = useStore();
 
   const resetWizard = () => {
@@ -32,6 +46,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     setSefazResults([]);
     setErpResults([]);
     setProcessing(false);
+    setStage("idle");
   };
 
   const processBatch = async (tipo: TipoImportacao, files: File[]) => {
@@ -39,14 +54,22 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
     for (const file of files) {
       try {
+        setStage("Lendo arquivo...");
+        await tick();
+        // O parser interno faz: validar extensão -> validar tamanho -> ler -> validar layout -> processar linhas.
+        // Os yields cooperativos estão dentro do parseFile, mas mantemos o feedback de etapa aqui.
+        setStage("Validando layout...");
+        await tick();
+        setStage("Processando linhas...");
         const result = await parseFile(file, tipo);
         all.push(result);
       } catch (e: any) {
+        // Defesa extra: qualquer erro inesperado vira erro estruturado para não travar a UI.
         all.push({
           ok: false,
           arquivo: file.name,
           tipo,
-          errors: [e?.message || "Erro ao ler arquivo."],
+          errors: [e?.message || "Erro inesperado ao ler arquivo."],
           warnings: [],
         });
       }
@@ -78,13 +101,20 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       }
 
       if (todasNotas.length) {
+        setStage("Atualizando conferência...");
+        await tick();
         store.ingestSefaz(todasNotas, importacaoId, files.map((file) => file.name).join(", "));
       }
     }
 
     if (tipo === "ERP") {
+      // PROTEÇÃO: só agregamos registros de arquivos cujo parse foi OK.
+      // Se TODOS os arquivos falharam, NÃO chamamos ingestErp — assim o snapshot ERP atual
+      // não é apagado e o motor não classifica tudo como FALTANTE por uma falha de importação.
       const registrosErp = successResults.flatMap((result) => result.registrosErp || []);
       if (registrosErp.length) {
+        setStage("Atualizando conferência...");
+        await tick();
         store.ingestErp(registrosErp, importacaoId, files.map((file) => file.name).join(", "));
       }
     }
@@ -95,8 +125,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           tipo: "importacao",
           nivel: "erro",
           arquivo_nome: result.arquivo,
-          codigo_evento: "IMPORT_ERR",
+          codigo_evento: tipo === "ERP" ? "IMPORT_ERR_ERP" : "IMPORT_ERR_SEFAZ",
           mensagem_usuario: error,
+          contexto_resumido: result.diagnostics
+            ? `motivo=${result.diagnostics.motivo_bloqueio || "n/a"}, linhas=${result.diagnostics.total_linhas_lidas ?? "n/a"}, cabecalho=${result.diagnostics.linha_cabecalho ?? "n/a"}, tempo_ms=${result.diagnostics.tempo_ms ?? "n/a"}`
+            : undefined,
         });
       }
 
@@ -120,7 +153,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           nivel: "aviso",
           arquivo_nome: result.arquivo,
           codigo_evento: "ERP_DIAG",
-          mensagem_usuario: `RFT006 diagnóstico: linhas=${d.total_linhas_lidas}, estruturados=${d.total_registros_estruturados}, com_chave=${d.total_com_chave_acesso}, com_ie=${d.total_com_inscricao_estadual_emitente}, sem_chave=${d.total_sem_chave}, sem_ie=${d.total_sem_ie}, chave_44_invalida=${d.total_chave_tamanho_invalido}, parse_ms=${d.tempo_parse_ms}.`,
+          mensagem_usuario: `RFT006 diagnóstico: linhas=${d.total_linhas_lidas ?? "n/a"}, estruturados=${d.total_registros_estruturados ?? "n/a"}, com_chave=${d.total_com_chave_acesso ?? "n/a"}, com_ie=${d.total_com_inscricao_estadual_emitente ?? "n/a"}, sem_chave=${d.total_sem_chave ?? "n/a"}, sem_ie=${d.total_sem_ie ?? "n/a"}, chave_44_invalida=${d.total_chave_tamanho_invalido ?? "n/a"}, parse_ms=${d.tempo_parse_ms ?? d.tempo_ms ?? "n/a"}.`,
           contexto_resumido: `amostra_chaves=${amostra || "n/a"}`,
         });
       }
@@ -136,12 +169,15 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   };
 
   const handleProcessSefaz = async () => {
+    if (processing) return; // PROTEÇÃO: bloqueia duplo clique / importações simultâneas.
     setProcessing(true);
+    setStage("Lendo arquivo...");
     try {
       const summary = await processBatch("SEFAZ", sefazFiles);
       setSefazResults(summary.results);
 
       if (summary.sucessos > 0) {
+        setStage("Finalizado com sucesso");
         if (summary.erros > 0) {
           toast.warning(`Lote SEFAZ processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
         } else {
@@ -151,8 +187,10 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         return;
       }
 
+      setStage("Erro no arquivo");
       toast.error("Nenhum arquivo SEFAZ foi processado com sucesso.");
     } catch (error: any) {
+      setStage("Erro no arquivo");
       store.addLog({
         tipo: "importacao",
         nivel: "erro",
@@ -161,17 +199,21 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       });
       toast.error("Erro inesperado ao processar lote SEFAZ.");
     } finally {
+      // PROTEÇÃO CRÍTICA: o botão NUNCA pode ficar preso em "Processando...".
       setProcessing(false);
     }
   };
 
   const handleProcessErp = async () => {
+    if (processing) return; // PROTEÇÃO: bloqueia duplo clique / importações simultâneas.
     setProcessing(true);
+    setStage("Lendo arquivo...");
     try {
       const summary = await processBatch("ERP", erpFiles);
       setErpResults(summary.results);
 
       if (summary.sucessos > 0) {
+        setStage("Finalizado com sucesso");
         if (summary.erros > 0) {
           toast.warning(`Lote RFT006 processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
         } else {
@@ -181,8 +223,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         return;
       }
 
-      toast.error("Nenhum arquivo RFT006/ERP foi processado com sucesso.");
+      // Falha total: snapshot ERP anterior é mantido (não chamamos ingestErp acima).
+      setStage("Erro no arquivo");
+      toast.error("Nenhum arquivo RFT006/ERP foi processado com sucesso. Os dados anteriores foram mantidos.");
     } catch (error: any) {
+      setStage("Erro no arquivo");
       store.addLog({
         tipo: "importacao",
         nivel: "erro",
@@ -191,11 +236,14 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       });
       toast.error("Erro inesperado ao processar lote RFT006/ERP.");
     } finally {
+      // PROTEÇÃO CRÍTICA: garante que o botão volta ao estado normal mesmo em falha.
       setProcessing(false);
     }
   };
 
   const handleClose = (v: boolean) => {
+    // Permite fechar mesmo após erro; não permite fechar enquanto está realmente processando.
+    if (!v && processing) return;
     if (!v) resetWizard();
     onOpenChange(v);
   };
@@ -204,6 +252,29 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const totalErrors = [...sefazResults, ...erpResults].reduce((acc, result) => acc + result.errors.length, 0);
   const sefazSuccesses = sefazResults.filter((result) => result.ok).length;
   const erpSuccesses = erpResults.filter((result) => result.ok).length;
+
+  const renderStageBanner = () => {
+    if (stage === "idle") return null;
+    const isError = stage === "Erro no arquivo";
+    const isDone = stage === "Finalizado com sucesso";
+    const isLoading = !isError && !isDone;
+    return (
+      <div
+        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+          isError
+            ? "border-destructive/40 bg-destructive/10 text-destructive"
+            : isDone
+            ? "border-success/40 bg-success/10 text-success"
+            : "border-border bg-muted/40 text-foreground"
+        }`}
+        role="status"
+        aria-live="polite"
+      >
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isError ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+        <span>{stage}</span>
+      </div>
+    );
+  };
 
   const renderResultList = (results: ParseResult[]) => {
     if (!results.length) return null;
@@ -260,9 +331,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 type="file"
                 multiple
                 accept=".xlsx,.xls"
+                disabled={processing}
                 onChange={(e) => {
                   setSefazFiles(Array.from(e.target.files || []));
                   setSefazResults([]);
+                  setStage("idle");
                 }}
                 className="mt-1.5"
               />
@@ -274,7 +347,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   <div key={index} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-2">
                     <FileSpreadsheet className="h-4 w-4 text-primary" />
                     <span className="flex-1 truncate">{file.name}</span>
-                    <button onClick={() => setSefazFiles(sefazFiles.filter((_, itemIndex) => itemIndex !== index))} className="text-muted-foreground hover:text-foreground">
+                    <button
+                      onClick={() => setSefazFiles(sefazFiles.filter((_, itemIndex) => itemIndex !== index))}
+                      className="text-muted-foreground hover:text-foreground"
+                      disabled={processing}
+                    >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -282,10 +359,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </div>
             )}
 
+            {renderStageBanner()}
             {renderResultList(sefazResults)}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => handleClose(false)}>
+              <Button variant="outline" onClick={() => handleClose(false)} disabled={processing}>
                 Fechar
               </Button>
               <Button onClick={handleProcessSefaz} disabled={!sefazFiles.length || processing}>
@@ -311,9 +389,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 type="file"
                 multiple
                 accept=".xlsx,.xls"
+                disabled={processing}
                 onChange={(e) => {
                   setErpFiles(Array.from(e.target.files || []));
                   setErpResults([]);
+                  setStage("idle");
                 }}
                 className="mt-1.5"
               />
@@ -325,7 +405,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   <div key={index} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-2">
                     <FileSpreadsheet className="h-4 w-4 text-primary" />
                     <span className="flex-1 truncate">{file.name}</span>
-                    <button onClick={() => setErpFiles(erpFiles.filter((_, itemIndex) => itemIndex !== index))} className="text-muted-foreground hover:text-foreground">
+                    <button
+                      onClick={() => setErpFiles(erpFiles.filter((_, itemIndex) => itemIndex !== index))}
+                      className="text-muted-foreground hover:text-foreground"
+                      disabled={processing}
+                    >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -333,10 +417,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </div>
             )}
 
+            {renderStageBanner()}
             {renderResultList(erpResults)}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setCurrentStep(1)}>
+              <Button variant="outline" onClick={() => setCurrentStep(1)} disabled={processing}>
                 Voltar
               </Button>
               <Button onClick={handleProcessErp} disabled={!erpFiles.length || processing}>
