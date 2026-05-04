@@ -1,89 +1,53 @@
-Li os PRDs solicitados e confirmei as regras críticas:
+## Problema identificado
 
-- V1 é 100% local no navegador, sem backend, banco ou autenticação.
-- SEFAZ é a base principal; ERP/RFT006 é complementar.
-- Matching oficial continua sendo somente `chave_nfe/chave_acesso + IE do emitente`.
-- Nunca usar IE do destinatário para matching.
-- RFT006 inválido não deve substituir o snapshot ERP vigente nem disparar o motor.
-- Logs operacionais precisam registrar erros/avisos claros conforme PRD 06.
+No print, vê-se "Tempo limite excedido ao ler o arquivo" e o botão fica preso em "Processando...".
 
-Plano de correção mínima e focada:
+### Causa raiz
 
-1. Fortalecer o parser de importação em `src/lib/importer.ts`
-   - Adicionar validação inicial de extensão `.xls/.xlsx` antes de ler o arquivo.
-   - Adicionar limite operacional seguro de tamanho para processamento local V1.
-   - Validar existência de planilha antes de converter para linhas.
-   - Envolver leitura/conversão do Excel em proteção com timeout de segurança e erro amigável.
-   - Fazer validação rápida do layout antes de percorrer todas as linhas.
-   - Para RFT006:
-     - validar cabeçalho compatível;
-     - confirmar coluna `Z = IE` ou coluna detectável como `IE`;
-     - confirmar coluna `AC = Chave de acesso` ou coluna detectável como `Chave de acesso`;
-     - bloquear importação com mensagens objetivas quando faltar coluna obrigatória;
-     - registrar diagnóstico com nome do arquivo, linhas, cabeçalho encontrado, coluna chave encontrada, coluna IE encontrada, motivo do bloqueio e tempo aproximado.
-   - Para SEFAZ:
-     - validar campos obrigatórios do PRD 08 nas posições esperadas;
-     - confirmar chave de acesso, situação/status, IE do emitente e CNPJ do destinatário no bloco correto;
-     - bloquear arquivo incompatível antes do processamento completo.
-   - Inserir pequenos `yield`s durante laços grandes para permitir que a UI respire.
-   - Manter payload completo e regra oficial de normalização já existente.
+Em `src/lib/importer.ts` (linha ~110), o código atual envolve `file.arrayBuffer()` em `withTimeout(..., 30_000, "ler o arquivo")`. O problema é estrutural:
 
-2. Corrigir o fluxo do modal em `src/components/ImportDialog.tsx`
-   - Substituir o estado booleano simples de `processing` por um status textual de etapa, mantendo também o bloqueio de duplo clique.
-   - Exibir mensagens de etapa no modal:
-     - “Lendo arquivo...”
-     - “Validando layout...”
-     - “Processando linhas...”
-     - “Atualizando conferência...”
-     - “Finalizado com sucesso”
-     - “Erro no arquivo”
-   - Garantir `try/catch/finally` em toda a cadeia dos botões SEFAZ e RFT006.
-   - Garantir que o botão nunca fique preso em “Processando...”.
-   - Após erro, permitir fechar, voltar e trocar o arquivo normalmente.
-   - Impedir múltiplas importações simultâneas.
+```ts
+const buf = await withTimeout(file.arrayBuffer(), READ_TIMEOUT_MS, "ler o arquivo");
+const wb = await withTimeout(
+  Promise.resolve().then(() => XLSX.read(buf, { type: "array", cellDates: true })),
+  READ_TIMEOUT_MS,
+  "interpretar a planilha"
+);
+```
 
-3. Proteger snapshot e execução do motor
-   - Ajustar o fluxo para chamar `store.ingestErp(...)` somente se o parse RFT006 retornar sucesso e registros elegíveis.
-   - Se RFT006 falhar, não chamar `ingestErp`, não limpar `erp`, não rodar `rerun` e não recalcular tudo como FALTANTE.
-   - Manter o comportamento SEFAZ atual de substituir somente destinatários impactados quando o lote SEFAZ for válido.
-   - Não alterar `rodarMotor` nem a regra de matching, exceto se necessário para comentários de proteção; a regra atual já usa chave + IE do emitente.
+O `withTimeout` usa `setTimeout` baseado no event loop. Quando o `XLSX.read` (que é **síncrono e CPU-bound**) começa a rodar logo em seguida, ele **bloqueia o event loop** por vários segundos em arquivos médios/grandes. Isso faz com que:
 
-4. Melhorar logs operacionais conforme PRD 06
-   - Registrar erros bloqueantes com códigos claros, por exemplo:
-     - `ERP_LAYOUT_CHAVE_AUSENTE`
-     - `ERP_LAYOUT_IE_AUSENTE`
-     - `ERP_ARQUIVO_GRANDE`
-     - `ERP_SEM_LINHAS_ELEGIVEIS`
-     - `SEFAZ_LAYOUT_CHAVE_AUSENTE`
-     - `SEFAZ_LAYOUT_INVALIDO`
-   - Incluir `contexto_resumido` com:
-     - total de linhas detectadas;
-     - linha de cabeçalho;
-     - índice/nome da coluna chave;
-     - índice/nome da coluna IE;
-     - tempo aproximado;
-     - motivo do bloqueio.
-   - Evitar stack trace técnico na interface.
+1. O `setTimeout` de 30s do `arrayBuffer` fique "atrasado" — quando o event loop volta, o JS julga que passaram 30s embora o `arrayBuffer` em si tenha resolvido em milissegundos.
+2. Ou o XLSX.read ultrapassa os 30s reais em arquivos do tipo COOPERAGRO (RFT006 costuma ter muitas colunas).
+3. Em ambos casos: erro "Tempo limite excedido ao ler o arquivo" aparece **mesmo com arquivo válido**.
 
-5. Comentários pontuais no código
-   - Adicionar comentários curtos apenas nos pontos de proteção contra travamento:
-     - limite de arquivo local;
-     - timeout/yield;
-     - bloqueio de snapshot ERP quando parse falha;
-     - validação de layout antes do loop pesado.
+Adicionalmente, o botão da Etapa 2 mostrou "Processando..." mesmo após o erro aparecer no `Resultado do lote`. Isso ocorre porque na captura o usuário provavelmente clicou múltiplas vezes ou o `setProcessing(false)` aconteceu logo depois — mas vale reforçar a UX.
 
-6. Validação após implementar
-   - Verificar que RFT006 inválido mostra erro e libera o modal.
-   - Verificar que arquivo grande demais mostra aviso amigável.
-   - Verificar que o botão volta ao estado normal após sucesso ou erro.
-   - Verificar que falha no RFT006 não destrói dados SEFAZ nem ERP anterior.
-   - Verificar que importação válida continua funcionando.
-   - Verificar que matching permanece por chave + IE do emitente.
+### Correção mínima
 
-Arquivos previstos para alteração:
+**Arquivo: `src/lib/importer.ts`**
 
-- `src/lib/importer.ts`
-- `src/components/ImportDialog.tsx`
-- Possivelmente `src/store/useStore.ts` apenas se for necessário reforçar a proteção contra ingestão vazia/inválida, sem alterar o motor.
+1. **Remover o `withTimeout` do `file.arrayBuffer()`** — `arrayBuffer()` é nativo do browser, não pode ser cancelado, e o "timeout" só polui o event loop. Deixa-se o navegador ler o arquivo no seu tempo.
+2. **Remover o `withTimeout` do `XLSX.read`** — é síncrono, envolver em `Promise.resolve().then(...)` com timeout não cancela nada (o thread já está bloqueado). O timeout dispara falsamente em arquivos legítimos.
+3. **Manter** as outras proteções: validação de extensão, limite de 25MB (já protege contra arquivos absurdos), limite de 200k linhas, yields cooperativos a cada 2k linhas no loop principal.
+4. **Manter** o helper `withTimeout` no arquivo caso seja útil em outro ponto, mas não usá-lo em operações síncronas/CPU-bound.
+5. Adicionar comentário explicando por que NÃO se usa timeout aqui (lição aprendida).
 
-Não vou criar backend, banco, autenticação, migrations nem refatorar a arquitetura.
+**Arquivo: `src/components/ImportDialog.tsx`**
+
+6. Reforçar o `finally` já existente — está correto, mas garantir que `setStage` reflita o estado final corretamente. O fluxo atual já chama `setProcessing(false)` no `finally`. Vou apenas adicionar um pequeno `await tick()` antes do parseFile para garantir que o banner "Processando linhas..." renderize antes do bloqueio do thread por XLSX.read.
+
+### Resultado esperado
+
+- Importação do COOPERAGRO.xlsx deixa de falhar com timeout falso.
+- O parser respeita o limite de 25MB / 200k linhas, que já é proteção suficiente para a V1 local.
+- Banner de etapa atualiza corretamente.
+- Botão volta ao estado normal após sucesso ou erro (já estava OK no `finally`, mantém-se).
+- Nenhuma regra do motor, matching, snapshot ERP ou exceções é alterada.
+
+### Arquivos alterados
+
+- `src/lib/importer.ts` — remover 2 chamadas de `withTimeout` e adicionar comentários.
+- `src/components/ImportDialog.tsx` — pequeno ajuste de feedback de etapa antes do `parseFile`.
+
+Sem mudanças em store, motor, exporters, exceções ou PRDs.
