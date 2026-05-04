@@ -47,6 +47,7 @@ export interface ParseResult {
   registrosErp?: Array<Omit<RegistroErp, "id" | "importacao_id">>;
   errors: string[];
   warnings: string[];
+  diagnostics?: Record<string, any>;
 }
 
 export async function parseFile(file: File, tipo: TipoImportacao): Promise<ParseResult> {
@@ -168,11 +169,17 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   const regs: ParseResult["registrosErp"] = [];
   let semChave = 0;
   let semIE = 0;
+  let chaveInvalidaTamanho = 0;
+  const chavesAmostra: string[] = [];
+  const parseStart = performance.now();
 
   for (const r of dataRows) {
     if (!r) continue;
 
-    const chave = normalizeChave(String(r[COL_AC_CHAVE] ?? ""));
+    // Chave de acesso deve ser tratada como texto para preservar os 44 dígitos.
+    // Nunca converter para número no pipeline de importação.
+    const chaveBruta = String(r[COL_AC_CHAVE] ?? "").trim();
+    const chave = normalizeChave(chaveBruta);
     const ieEmitente = normalizeIE(String(r[COL_Z_IE_EMITENTE] ?? ""));
 
     const payload: Record<string, any> = {};
@@ -189,6 +196,13 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       });
       continue;
     }
+
+    if (chave.length !== 44) {
+      chaveInvalidaTamanho++;
+      result.warnings.push(`Linha RFT006 com chave fora do padrão de 44 dígitos (${chave.length}).`);
+    }
+
+    if (chavesAmostra.length < 5) chavesAmostra.push(chave);
 
     if (!ieEmitente) semIE++;
 
@@ -220,6 +234,19 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   }
 
   result.registrosErp = regs;
+  const comChave = regs.filter((r) => !!r.chave_acesso).length;
+  const comIE = regs.filter((r) => !!r.inscricao_estadual_emitente).length;
+  result.diagnostics = {
+    total_linhas_lidas: dataRows.length,
+    total_registros_estruturados: regs.length,
+    total_com_chave_acesso: comChave,
+    total_com_inscricao_estadual_emitente: comIE,
+    total_sem_chave: semChave,
+    total_sem_ie: semIE,
+    total_chave_tamanho_invalido: chaveInvalidaTamanho,
+    chaves_amostra_5: chavesAmostra,
+    tempo_parse_ms: Math.round(performance.now() - parseStart),
+  };
   result.ok = true;
   return result;
 }

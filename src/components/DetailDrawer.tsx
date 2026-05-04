@@ -9,6 +9,7 @@ import { useStore } from "@/store/useStore";
 import type { DatasetLinha } from "@/lib/types";
 import { Ban, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { formatFiscalDateBR } from "@/lib/fiscalDate";
 
 export function DetailDrawer({
   linha,
@@ -116,7 +117,7 @@ export function DetailDrawer({
               </div>
               <div>
                 <dt className="text-muted-foreground text-xs">Data emissão</dt>
-                <dd className="font-medium">{new Date(linha.data_emissao).toLocaleDateString("pt-BR")}</dd>
+                <dd className="font-medium">{formatFiscalDateBR(linha.data_emissao)}</dd>
               </div>
             </dl>
             {linha.motivo_divergencia === "IE_EMITENTE_AUSENTE_RFT006" && (

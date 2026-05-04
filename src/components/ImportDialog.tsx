@@ -10,6 +10,12 @@ import { toast } from "sonner";
 
 type WizardStep = 1 | 2 | 3;
 
+function maskChave(chave: string): string {
+  if (!chave) return "";
+  if (chave.length <= 10) return chave;
+  return `${chave.slice(0, 6)}...${chave.slice(-4)}`;
+}
+
 export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [sefazFiles, setSefazFiles] = useState<File[]>([]);
@@ -103,6 +109,21 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           mensagem_usuario: warning,
         });
       }
+
+      if (result.tipo === "ERP" && result.diagnostics) {
+        const d = result.diagnostics;
+        const amostra = Array.isArray(d.chaves_amostra_5)
+          ? d.chaves_amostra_5.map((k: string) => maskChave(k)).join(", ")
+          : "";
+        store.addLog({
+          tipo: "processamento",
+          nivel: "aviso",
+          arquivo_nome: result.arquivo,
+          codigo_evento: "ERP_DIAG",
+          mensagem_usuario: `RFT006 diagnóstico: linhas=${d.total_linhas_lidas}, estruturados=${d.total_registros_estruturados}, com_chave=${d.total_com_chave_acesso}, com_ie=${d.total_com_inscricao_estadual_emitente}, sem_chave=${d.total_sem_chave}, sem_ie=${d.total_sem_ie}, chave_44_invalida=${d.total_chave_tamanho_invalido}, parse_ms=${d.tempo_parse_ms}.`,
+          contexto_resumido: `amostra_chaves=${amostra || "n/a"}`,
+        });
+      }
     }
 
     return {
@@ -116,40 +137,62 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const handleProcessSefaz = async () => {
     setProcessing(true);
-    const summary = await processBatch("SEFAZ", sefazFiles);
-    setSefazResults(summary.results);
-    setProcessing(false);
+    try {
+      const summary = await processBatch("SEFAZ", sefazFiles);
+      setSefazResults(summary.results);
 
-    if (summary.sucessos > 0) {
-      if (summary.erros > 0) {
-        toast.warning(`Lote SEFAZ processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
-      } else {
-        toast.success(`Lote SEFAZ processado com sucesso: ${summary.sucessos} arquivo(s).`);
+      if (summary.sucessos > 0) {
+        if (summary.erros > 0) {
+          toast.warning(`Lote SEFAZ processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
+        } else {
+          toast.success(`Lote SEFAZ processado com sucesso: ${summary.sucessos} arquivo(s).`);
+        }
+        setCurrentStep(2);
+        return;
       }
-      setCurrentStep(2);
-      return;
-    }
 
-    toast.error("Nenhum arquivo SEFAZ foi processado com sucesso.");
+      toast.error("Nenhum arquivo SEFAZ foi processado com sucesso.");
+    } catch (error: any) {
+      store.addLog({
+        tipo: "importacao",
+        nivel: "erro",
+        codigo_evento: "IMPORT_UNEXPECTED_SEFAZ",
+        mensagem_usuario: `Falha inesperada no processamento do lote SEFAZ: ${error?.message || "erro desconhecido"}`,
+      });
+      toast.error("Erro inesperado ao processar lote SEFAZ.");
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleProcessErp = async () => {
     setProcessing(true);
-    const summary = await processBatch("ERP", erpFiles);
-    setErpResults(summary.results);
-    setProcessing(false);
+    try {
+      const summary = await processBatch("ERP", erpFiles);
+      setErpResults(summary.results);
 
-    if (summary.sucessos > 0) {
-      if (summary.erros > 0) {
-        toast.warning(`Lote RFT006 processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
-      } else {
-        toast.success(`Lote RFT006 processado com sucesso: ${summary.sucessos} arquivo(s).`);
+      if (summary.sucessos > 0) {
+        if (summary.erros > 0) {
+          toast.warning(`Lote RFT006 processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
+        } else {
+          toast.success(`Lote RFT006 processado com sucesso: ${summary.sucessos} arquivo(s).`);
+        }
+        setCurrentStep(3);
+        return;
       }
-      setCurrentStep(3);
-      return;
-    }
 
-    toast.error("Nenhum arquivo RFT006/ERP foi processado com sucesso.");
+      toast.error("Nenhum arquivo RFT006/ERP foi processado com sucesso.");
+    } catch (error: any) {
+      store.addLog({
+        tipo: "importacao",
+        nivel: "erro",
+        codigo_evento: "IMPORT_UNEXPECTED_ERP",
+        mensagem_usuario: `Falha inesperada no processamento do lote RFT006: ${error?.message || "erro desconhecido"}`,
+      });
+      toast.error("Erro inesperado ao processar lote RFT006/ERP.");
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleClose = (v: boolean) => {
