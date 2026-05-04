@@ -61,6 +61,9 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         setStage("Validando layout...");
         await tick();
         setStage("Processando linhas...");
+        // tick extra: garante que o banner renderize ANTES de XLSX.read (síncrono
+        // e CPU-bound) bloquear o thread por alguns segundos em arquivos grandes.
+        await tick();
         const result = await parseFile(file, tipo);
         all.push(result);
       } catch (e: any) {

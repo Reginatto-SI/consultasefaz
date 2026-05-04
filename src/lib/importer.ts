@@ -123,12 +123,14 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   let headerRow = 0;
 
   try {
-    const buf = await withTimeout(file.arrayBuffer(), READ_TIMEOUT_MS, "ler o arquivo");
-    const wb = await withTimeout(
-      Promise.resolve().then(() => XLSX.read(buf, { type: "array", cellDates: true })),
-      READ_TIMEOUT_MS,
-      "interpretar a planilha"
-    );
+    // PROTEÇÃO CONTRA TRAVAMENTO (lição aprendida):
+    // NÃO envolver file.arrayBuffer() nem XLSX.read() em withTimeout.
+    // - arrayBuffer() é nativo e não pode ser cancelado; o setTimeout só polui o event loop.
+    // - XLSX.read() é SÍNCRONO e CPU-bound: ele bloqueia o thread, então o setTimeout
+    //   acumula atraso e dispara um falso "Tempo limite excedido" mesmo em arquivos válidos.
+    // As proteções reais já são: validação de extensão, limite de 25MB e limite de 200k linhas.
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array", cellDates: true });
 
     if (!wb.SheetNames || wb.SheetNames.length === 0) {
       result.errors.push("Arquivo inválido: nenhuma planilha encontrada.");
