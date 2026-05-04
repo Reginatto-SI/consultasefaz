@@ -9,6 +9,23 @@ import type { NotaSefaz, RegistroErp } from "@/lib/types";
 
 export type TipoImportacao = "SEFAZ" | "ERP";
 
+// PROTEÇÃO CONTRA TRAVAMENTO: limite seguro de tamanho para processamento local na V1.
+// Acima disso o navegador pode travar — bloqueamos antes de tentar ler o arquivo.
+const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
+// Limite máximo de linhas processadas no laço pesado (proteção V1).
+const MAX_DATA_ROWS = 200_000;
+// Cooperative yield: a cada N linhas devolvemos o controle ao event loop para a UI respirar.
+const YIELD_EVERY = 2_000;
+// Timeout de segurança para a leitura do XLSX (parsing pode ser pesado em arquivos exóticos).
+const READ_TIMEOUT_MS = 30_000;
+
+const VALID_EXTS = [".xls", ".xlsx"];
+
+function hasValidExtension(name: string): boolean {
+  const lower = (name || "").toLowerCase();
+  return VALID_EXTS.some((ext) => lower.endsWith(ext));
+}
+
 function detectHeaderRow(rows: any[][]): number {
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const row = rows[i] || [];
@@ -39,6 +56,25 @@ function parseDate(v: any): string {
   return isNaN(t) ? new Date().toISOString() : new Date(t).toISOString();
 }
 
+// Pequena pausa para devolver o controle ao event loop e impedir o travamento da UI.
+function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+// Envolve uma promise em um timeout duro para evitar trava infinita.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Tempo limite excedido ao ${label}.`)), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }).catch((e) => {
+      clearTimeout(t);
+      reject(e);
+    });
+  });
+}
+
 export interface ParseResult {
   ok: boolean;
   arquivo: string;
@@ -51,11 +87,7 @@ export interface ParseResult {
 }
 
 export async function parseFile(file: File, tipo: TipoImportacao): Promise<ParseResult> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array", cellDates: true });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
-
+  const t0 = performance.now();
   const result: ParseResult = {
     ok: false,
     arquivo: file.name,
@@ -64,14 +96,83 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     warnings: [],
   };
 
+  // PROTEÇÃO 1: validar extensão antes de tocar no arquivo.
+  if (!hasValidExtension(file.name)) {
+    result.errors.push("Arquivo inválido: extensão não suportada. Use .xls ou .xlsx.");
+    return result;
+  }
+
+  // PROTEÇÃO 2: validar tamanho. Acima do limite seguro, abortamos com mensagem amigável.
+  if (file.size > MAX_FILE_BYTES) {
+    result.errors.push(
+      "Arquivo muito grande para processamento local nesta versão. Divida o relatório em partes menores ou exporte novamente com período reduzido."
+    );
+    result.diagnostics = {
+      tamanho_bytes: file.size,
+      limite_bytes: MAX_FILE_BYTES,
+      motivo_bloqueio: "ARQUIVO_GRANDE",
+      tempo_ms: Math.round(performance.now() - t0),
+    };
+    return result;
+  }
+
+  // PROTEÇÃO 3: leitura do binário e parse do XLSX com timeout duro.
+  let rows: any[][] = [];
+  let headers: string[] = [];
+  let dataRows: any[][] = [];
+  let headerRow = 0;
+
+  try {
+    const buf = await withTimeout(file.arrayBuffer(), READ_TIMEOUT_MS, "ler o arquivo");
+    const wb = await withTimeout(
+      Promise.resolve().then(() => XLSX.read(buf, { type: "array", cellDates: true })),
+      READ_TIMEOUT_MS,
+      "interpretar a planilha"
+    );
+
+    if (!wb.SheetNames || wb.SheetNames.length === 0) {
+      result.errors.push("Arquivo inválido: nenhuma planilha encontrada.");
+      return result;
+    }
+
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) {
+      result.errors.push("Arquivo inválido: planilha principal ausente.");
+      return result;
+    }
+
+    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null }) as any[][];
+  } catch (e: any) {
+    result.errors.push(e?.message || "Não foi possível ler o arquivo Excel.");
+    result.diagnostics = {
+      motivo_bloqueio: "FALHA_LEITURA",
+      tempo_ms: Math.round(performance.now() - t0),
+    };
+    return result;
+  }
+
   if (!rows.length) {
     result.errors.push("Arquivo vazio.");
     return result;
   }
 
-  const headerRow = detectHeaderRow(rows);
-  const headers = (rows[headerRow] || []).map((h) => String(h ?? ""));
-  const dataRows = rows.slice(headerRow + 1);
+  headerRow = detectHeaderRow(rows);
+  headers = (rows[headerRow] || []).map((h) => String(h ?? ""));
+  dataRows = rows.slice(headerRow + 1);
+
+  // PROTEÇÃO 4: limite de linhas processadas no laço pesado.
+  if (dataRows.length > MAX_DATA_ROWS) {
+    result.errors.push(
+      "Arquivo excede o limite seguro de processamento local. Divida o relatório em partes menores."
+    );
+    result.diagnostics = {
+      total_linhas_lidas: dataRows.length,
+      limite_linhas: MAX_DATA_ROWS,
+      motivo_bloqueio: "EXCESSO_DE_LINHAS",
+      tempo_ms: Math.round(performance.now() - t0),
+    };
+    return result;
+  }
 
   if (tipo === "SEFAZ") {
     // PRD 08: layout oficial por posição (base 0).
@@ -81,21 +182,61 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     const COL_I_STATUS = 8;
     const COL_J_EMITENTE_CNPJ = 9;
     const COL_K_EMITENTE_RAZAO = 10;
-    const COL_L_IE_EMITENTE = 11; // PRD 08: coluna L = IE do emitente
-    const COL_O_DEST_CNPJ = 14; // PRD 08: coluna O = CNPJ destinatário
+    const COL_L_IE_EMITENTE = 11;
+    const COL_O_DEST_CNPJ = 14;
     const COL_P_DEST_IE = 15;
     const COL_Q_DEST_RAZAO = 16;
     const COL_Y_VALOR_TOTAL = 24;
 
-    if (headers.length <= COL_O_DEST_CNPJ || headers.length <= COL_D_CHAVE_NFE || headers.length <= COL_I_STATUS) {
-      result.errors.push("Cabeçalho incompatível com layout SEFAZ base (PRD 08).");
+    // VALIDAÇÃO RÁPIDA DE LAYOUT antes do laço pesado (PRD 08).
+    if (headers.length <= COL_O_DEST_CNPJ) {
+      result.errors.push("Arquivo SEFAZ inválido: cabeçalho não contém o bloco de destinatário esperado (PRD 08).");
+      result.diagnostics = {
+        total_linhas_lidas: dataRows.length,
+        linha_cabecalho: headerRow,
+        motivo_bloqueio: "SEFAZ_LAYOUT_INVALIDO",
+        tempo_ms: Math.round(performance.now() - t0),
+      };
+      return result;
+    }
+    if (headers.length <= COL_D_CHAVE_NFE) {
+      result.errors.push("Arquivo SEFAZ inválido: coluna obrigatória 'CHAVE DE ACESSO' não encontrada.");
+      result.diagnostics = {
+        total_linhas_lidas: dataRows.length,
+        linha_cabecalho: headerRow,
+        motivo_bloqueio: "SEFAZ_LAYOUT_CHAVE_AUSENTE",
+        tempo_ms: Math.round(performance.now() - t0),
+      };
+      return result;
+    }
+    if (headers.length <= COL_I_STATUS) {
+      result.errors.push("Arquivo SEFAZ inválido: coluna obrigatória 'SITUAÇÃO' não encontrada.");
+      result.diagnostics = {
+        total_linhas_lidas: dataRows.length,
+        linha_cabecalho: headerRow,
+        motivo_bloqueio: "SEFAZ_LAYOUT_STATUS_AUSENTE",
+        tempo_ms: Math.round(performance.now() - t0),
+      };
+      return result;
+    }
+    if (headers.length <= COL_L_IE_EMITENTE) {
+      result.errors.push("Arquivo SEFAZ inválido: coluna obrigatória 'INSCRIÇÃO ESTADUAL' do emitente não encontrada (PRD 08).");
+      result.diagnostics = {
+        total_linhas_lidas: dataRows.length,
+        linha_cabecalho: headerRow,
+        motivo_bloqueio: "SEFAZ_LAYOUT_IE_EMITENTE_AUSENTE",
+        tempo_ms: Math.round(performance.now() - t0),
+      };
       return result;
     }
 
     const notas: ParseResult["notasSefaz"] = [];
     let descartadas = 0;
 
-    for (const r of dataRows) {
+    for (let i = 0; i < dataRows.length; i++) {
+      const r = dataRows[i];
+      // PROTEÇÃO 5: yield cooperativo para a UI continuar respirando em laços longos.
+      if (i > 0 && i % YIELD_EVERY === 0) await yieldToUi();
       if (!r) continue;
       const chave = normalizeChave(String(r[COL_D_CHAVE_NFE] ?? ""));
       const destCnpj = normalizeCnpj(String(r[COL_O_DEST_CNPJ] ?? ""));
@@ -135,9 +276,16 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       });
     }
 
-    if (descartadas > 0) result.warnings.push(`${descartadas} linha(s) SEFAZ descartada(s) por ausência de chave, destinatário ou IE do emitente.`);
+    if (descartadas > 0)
+      result.warnings.push(`${descartadas} linha(s) SEFAZ descartada(s) por ausência de chave, destinatário ou IE do emitente.`);
     if (!notas!.length) {
-      result.errors.push("Nenhuma linha válida encontrada.");
+      result.errors.push("Nenhuma linha válida encontrada no arquivo SEFAZ.");
+      result.diagnostics = {
+        total_linhas_lidas: dataRows.length,
+        linha_cabecalho: headerRow,
+        motivo_bloqueio: "SEFAZ_SEM_LINHAS_VALIDAS",
+        tempo_ms: Math.round(performance.now() - t0),
+      };
       return result;
     }
 
@@ -147,22 +295,69 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     }
 
     result.notasSefaz = notas;
+    result.diagnostics = {
+      total_linhas_lidas: dataRows.length,
+      linha_cabecalho: headerRow,
+      total_estruturado: notas!.length,
+      tempo_ms: Math.round(performance.now() - t0),
+    };
     result.ok = true;
     return result;
   }
 
+  // ---------- RFT006 / ERP ----------
   // PRD 09: layout oficial por posição (base 0).
   const COL_G_DATA_EMISSAO_ERP = 6;
   const COL_I_NUMERO_NF = 8;
   const COL_L_CFOP = 11;
   const COL_T_VALOR_TOTAL = 19;
   const COL_Y_EMIT_CNPJ = 24;
-  const COL_Z_IE_EMITENTE = 25; // PRD 09: coluna Z = IE do emitente no RFT006
+  const COL_Z_IE_EMITENTE = 25; // Z = IE emitente
   const COL_AA_EMIT_RAZAO = 26;
-  const COL_AC_CHAVE = 28; // PRD 09: coluna AC = chave de acesso
+  const COL_AC_CHAVE = 28; // AC = Chave de acesso
 
-  if (headers.length <= COL_AC_CHAVE || headers.length <= COL_Z_IE_EMITENTE) {
-    result.errors.push("Cabeçalho incompatível com layout RFT006 base (PRD 09).");
+  // Detecção tolerante por nome do cabeçalho (fallback de validação).
+  const headerLower = headers.map((h) => (h ?? "").toString().toLowerCase());
+  const hasKeyByName = headerLower.some((h) => h.includes("chave") && h.includes("acesso"));
+  const hasIeByName = headerLower.some((h) => h.trim() === "ie" || h.includes("inscricao estadual") || h.includes("inscrição estadual"));
+
+  // VALIDAÇÃO RÁPIDA DE LAYOUT antes do laço pesado (PRD 09).
+  // Bloqueia o arquivo inteiro quando coluna obrigatória não existe nem por posição nem por nome.
+  const chaveColExiste = headers.length > COL_AC_CHAVE || hasKeyByName;
+  const ieColExiste = headers.length > COL_Z_IE_EMITENTE || hasIeByName;
+
+  if (!chaveColExiste) {
+    result.errors.push("Arquivo RFT006 inválido: coluna 'Chave de acesso' não encontrada (PRD 09).");
+    result.diagnostics = {
+      total_linhas_lidas: dataRows.length,
+      linha_cabecalho: headerRow,
+      coluna_chave_encontrada: false,
+      coluna_ie_encontrada: ieColExiste,
+      motivo_bloqueio: "ERP_LAYOUT_CHAVE_AUSENTE",
+      tempo_ms: Math.round(performance.now() - t0),
+    };
+    return result;
+  }
+  if (!ieColExiste) {
+    result.errors.push("Arquivo RFT006 inválido: coluna 'IE' do emitente não encontrada (PRD 09).");
+    result.diagnostics = {
+      total_linhas_lidas: dataRows.length,
+      linha_cabecalho: headerRow,
+      coluna_chave_encontrada: chaveColExiste,
+      coluna_ie_encontrada: false,
+      motivo_bloqueio: "ERP_LAYOUT_IE_AUSENTE",
+      tempo_ms: Math.round(performance.now() - t0),
+    };
+    return result;
+  }
+  if (dataRows.length === 0) {
+    result.errors.push("Arquivo RFT006 inválido: nenhuma linha de dados abaixo do cabeçalho.");
+    result.diagnostics = {
+      total_linhas_lidas: 0,
+      linha_cabecalho: headerRow,
+      motivo_bloqueio: "ERP_SEM_LINHAS",
+      tempo_ms: Math.round(performance.now() - t0),
+    };
     return result;
   }
 
@@ -171,13 +366,14 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   let semIE = 0;
   let chaveInvalidaTamanho = 0;
   const chavesAmostra: string[] = [];
-  const parseStart = performance.now();
 
-  for (const r of dataRows) {
+  for (let i = 0; i < dataRows.length; i++) {
+    const r = dataRows[i];
+    // PROTEÇÃO 5: yield cooperativo a cada N linhas.
+    if (i > 0 && i % YIELD_EVERY === 0) await yieldToUi();
     if (!r) continue;
 
-    // Chave de acesso deve ser tratada como texto para preservar os 44 dígitos.
-    // Nunca converter para número no pipeline de importação.
+    // Chave de acesso é texto: nunca converter para número.
     const chaveBruta = String(r[COL_AC_CHAVE] ?? "").trim();
     const chave = normalizeChave(chaveBruta);
     const ieEmitente = normalizeIE(String(r[COL_Z_IE_EMITENTE] ?? ""));
@@ -199,11 +395,13 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
 
     if (chave.length !== 44) {
       chaveInvalidaTamanho++;
-      result.warnings.push(`Linha RFT006 com chave fora do padrão de 44 dígitos (${chave.length}).`);
+      // Limita o ruído de avisos para não inflar logs em arquivos muito grandes.
+      if (chaveInvalidaTamanho <= 5) {
+        result.warnings.push(`Linha RFT006 com chave fora do padrão de 44 dígitos (${chave.length}).`);
+      }
     }
 
     if (chavesAmostra.length < 5) chavesAmostra.push(chave);
-
     if (!ieEmitente) semIE++;
 
     regs!.push({
@@ -224,12 +422,32 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     });
   }
 
-  if (semChave > 0) result.warnings.push(`${semChave} linha(s) RFT006 sem chave de acesso. Elas foram ignoradas no matching.`);
-  if (semIE > 0) result.warnings.push(`${semIE} linha(s) RFT006 com chave de acesso, mas sem IE do emitente. Elas foram ignoradas no matching.`);
+  if (semChave > 0)
+    result.warnings.push(`${semChave} linha(s) RFT006 sem chave de acesso. Elas foram ignoradas no matching.`);
+  if (semIE > 0)
+    result.warnings.push(`${semIE} linha(s) RFT006 com chave de acesso, mas sem IE do emitente. Elas foram ignoradas no matching.`);
 
   const elegiveis = regs!.filter((r) => !!r.chave_acesso && !!r.inscricao_estadual_emitente);
+  const tempoMs = Math.round(performance.now() - t0);
+
   if (!regs!.length || !elegiveis.length) {
+    // PROTEÇÃO: se não há linhas elegíveis, retornamos erro para o orquestrador NÃO
+    // substituir o snapshot ERP atual nem rodar o motor classificando tudo como FALTANTE.
     result.errors.push("Nenhuma linha elegível para matching encontrada no RFT006.");
+    result.diagnostics = {
+      total_linhas_lidas: dataRows.length,
+      total_registros_estruturados: regs!.length,
+      total_com_chave_acesso: regs!.filter((r) => !!r.chave_acesso).length,
+      total_com_inscricao_estadual_emitente: regs!.filter((r) => !!r.inscricao_estadual_emitente).length,
+      total_sem_chave: semChave,
+      total_sem_ie: semIE,
+      total_chave_tamanho_invalido: chaveInvalidaTamanho,
+      chaves_amostra_5: chavesAmostra,
+      linha_cabecalho: headerRow,
+      motivo_bloqueio: "ERP_SEM_LINHAS_ELEGIVEIS",
+      tempo_ms: tempoMs,
+      tempo_parse_ms: tempoMs,
+    };
     return result;
   }
 
@@ -245,7 +463,11 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     total_sem_ie: semIE,
     total_chave_tamanho_invalido: chaveInvalidaTamanho,
     chaves_amostra_5: chavesAmostra,
-    tempo_parse_ms: Math.round(performance.now() - parseStart),
+    linha_cabecalho: headerRow,
+    coluna_chave_encontrada: true,
+    coluna_ie_encontrada: true,
+    tempo_ms: tempoMs,
+    tempo_parse_ms: tempoMs,
   };
   result.ok = true;
   return result;

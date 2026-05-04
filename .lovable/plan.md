@@ -1,55 +1,89 @@
-## Objetivo
-Implementar geração real dos relatórios nos botões "Exportar Excel" e "Gerar PDF" do header da Conferência, usando os dados filtrados da tela. Sem alterar motor, importação, exceções ou layout.
+Li os PRDs solicitados e confirmei as regras críticas:
 
-## Bibliotecas
-- Excel: usar `xlsx` (já instalado).
-- PDF: adicionar `jspdf` + `jspdf-autotable` (libs simples e padrão de mercado, sem mudança arquitetural).
+- V1 é 100% local no navegador, sem backend, banco ou autenticação.
+- SEFAZ é a base principal; ERP/RFT006 é complementar.
+- Matching oficial continua sendo somente `chave_nfe/chave_acesso + IE do emitente`.
+- Nunca usar IE do destinatário para matching.
+- RFT006 inválido não deve substituir o snapshot ERP vigente nem disparar o motor.
+- Logs operacionais precisam registrar erros/avisos claros conforme PRD 06.
 
-## Arquivos a criar
-- `src/lib/exporters/excelExporter.ts` — função `exportarExcelConferencia(linhas, stats, filtros)`:
-  - Aba "Resumo": data/hora geração, total exportado, totais OK/FALTANTE/IRREGULAR/DESCONSIDERADA, filtros aplicados (destinatário, período, chave, status).
-  - Aba "Conferência": colunas em PT-BR — Data Emissão, Destinatário, Chave NF-e, Número Nota, Emitente, CNPJ/CPF Emitente, IE Emitente SEFAZ, IE Emitente ERP/RFT006, Status SEFAZ, Resultado Matching, Motivo Divergência, Status Final, Valor Total.
-  - Cabeçalhos em negrito (via `!cols` width + estilo simples), congelar primeira linha.
-  - Nome do arquivo: `relatorio-conferencia-sefaz-erp-YYYY-MM-DD.xlsx`.
+Plano de correção mínima e focada:
 
-- `src/lib/exporters/pdfExporter.ts` — função `exportarPdfConferencia(linhas, stats, filtros)`:
-  - jsPDF orientação paisagem A4.
-  - Cabeçalho: título "Relatório de Conferência SEFAZ x ERP", data/hora, total considerado, filtros aplicados.
-  - Bloco resumo: OK / FALTANTE / IRREGULAR / DESCONSIDERADA.
-  - Tabela via autoTable: Data Emissão, Destinatário, Chave NF-e (fonte menor / quebra), Emitente, IE SEFAZ, IE ERP, Resultado Matching, Status Final.
-  - `didDrawPage` desenha rodapé em todas as páginas com 2 linhas:
-    - "Por Edimar Reginato — JM Assessoria e Contabilidade MT"
-    - "Gerado por Reginatto SI — www.reginattosistemas.com.br — Contato: (65) 99210-2030"
-    - Numeração "Página X de Y" no canto direito.
-  - Cabeçalho da tabela repetido por página (autoTable default).
-  - Nome do arquivo: `relatorio-conferencia-sefaz-erp-YYYY-MM-DD.pdf`.
+1. Fortalecer o parser de importação em `src/lib/importer.ts`
+   - Adicionar validação inicial de extensão `.xls/.xlsx` antes de ler o arquivo.
+   - Adicionar limite operacional seguro de tamanho para processamento local V1.
+   - Validar existência de planilha antes de converter para linhas.
+   - Envolver leitura/conversão do Excel em proteção com timeout de segurança e erro amigável.
+   - Fazer validação rápida do layout antes de percorrer todas as linhas.
+   - Para RFT006:
+     - validar cabeçalho compatível;
+     - confirmar coluna `Z = IE` ou coluna detectável como `IE`;
+     - confirmar coluna `AC = Chave de acesso` ou coluna detectável como `Chave de acesso`;
+     - bloquear importação com mensagens objetivas quando faltar coluna obrigatória;
+     - registrar diagnóstico com nome do arquivo, linhas, cabeçalho encontrado, coluna chave encontrada, coluna IE encontrada, motivo do bloqueio e tempo aproximado.
+   - Para SEFAZ:
+     - validar campos obrigatórios do PRD 08 nas posições esperadas;
+     - confirmar chave de acesso, situação/status, IE do emitente e CNPJ do destinatário no bloco correto;
+     - bloquear arquivo incompatível antes do processamento completo.
+   - Inserir pequenos `yield`s durante laços grandes para permitir que a UI respire.
+   - Manter payload completo e regra oficial de normalização já existente.
 
-- `src/lib/exporters/helpers.ts` — utilitários compartilhados:
-  - `getLinhaExportFields(linha)` reaproveitando os mesmos getters já usados em `ConferenciaView` (destinatário, número da nota, natureza, emitente, valor) — duplicar lógica em pequena escala para não tocar a view.
-  - `formatarFiltrosAplicados({ empresaId, status, dataIni, dataFim, chave, empresas })` → string descritiva.
+2. Corrigir o fluxo do modal em `src/components/ImportDialog.tsx`
+   - Substituir o estado booleano simples de `processing` por um status textual de etapa, mantendo também o bloqueio de duplo clique.
+   - Exibir mensagens de etapa no modal:
+     - “Lendo arquivo...”
+     - “Validando layout...”
+     - “Processando linhas...”
+     - “Atualizando conferência...”
+     - “Finalizado com sucesso”
+     - “Erro no arquivo”
+   - Garantir `try/catch/finally` em toda a cadeia dos botões SEFAZ e RFT006.
+   - Garantir que o botão nunca fique preso em “Processando...”.
+   - Após erro, permitir fechar, voltar e trocar o arquivo normalmente.
+   - Impedir múltiplas importações simultâneas.
 
-## Alterações no `src/pages/Index.tsx`
-- Substituir os dois `onClick` que hoje só abrem toast "Funcionalidade será implementada":
-  - "Exportar Excel": chama `exportarExcelConferencia(filtered, stats, filtrosDescricao)` dentro de try/catch.
-  - "Gerar PDF": chama `exportarPdfConferencia(filtered, stats, filtrosDescricao)` dentro de try/catch.
-- Antes de exportar, se `filtered.length === 0`: `toast({ title: "Não há dados de conferência para exportar." })` e abortar.
-- Em erro: `toast({ variant: "destructive", title: "Não foi possível gerar o relatório. Verifique os dados e tente novamente." })`.
-- Sucesso: toast curto "Relatório gerado".
-- Manter botões desabilitados quando `!hasAnalysisData` (mesmo padrão do botão "Limpar análise") para coerência visual.
+3. Proteger snapshot e execução do motor
+   - Ajustar o fluxo para chamar `store.ingestErp(...)` somente se o parse RFT006 retornar sucesso e registros elegíveis.
+   - Se RFT006 falhar, não chamar `ingestErp`, não limpar `erp`, não rodar `rerun` e não recalcular tudo como FALTANTE.
+   - Manter o comportamento SEFAZ atual de substituir somente destinatários impactados quando o lote SEFAZ for válido.
+   - Não alterar `rodarMotor` nem a regra de matching, exceto se necessário para comentários de proteção; a regra atual já usa chave + IE do emitente.
 
-## Dependências a instalar
-- `jspdf`
-- `jspdf-autotable`
+4. Melhorar logs operacionais conforme PRD 06
+   - Registrar erros bloqueantes com códigos claros, por exemplo:
+     - `ERP_LAYOUT_CHAVE_AUSENTE`
+     - `ERP_LAYOUT_IE_AUSENTE`
+     - `ERP_ARQUIVO_GRANDE`
+     - `ERP_SEM_LINHAS_ELEGIVEIS`
+     - `SEFAZ_LAYOUT_CHAVE_AUSENTE`
+     - `SEFAZ_LAYOUT_INVALIDO`
+   - Incluir `contexto_resumido` com:
+     - total de linhas detectadas;
+     - linha de cabeçalho;
+     - índice/nome da coluna chave;
+     - índice/nome da coluna IE;
+     - tempo aproximado;
+     - motivo do bloqueio.
+   - Evitar stack trace técnico na interface.
 
-(`xlsx` já presente, não reinstalar.)
+5. Comentários pontuais no código
+   - Adicionar comentários curtos apenas nos pontos de proteção contra travamento:
+     - limite de arquivo local;
+     - timeout/yield;
+     - bloqueio de snapshot ERP quando parse falha;
+     - validação de layout antes do loop pesado.
 
-## Fora de escopo (não tocar)
-- Motor (`src/lib/engine.ts`), importador, regras de exceções, store, tipos, layout da `ConferenciaView`, filtros da tela, estado persistido.
+6. Validação após implementar
+   - Verificar que RFT006 inválido mostra erro e libera o modal.
+   - Verificar que arquivo grande demais mostra aviso amigável.
+   - Verificar que o botão volta ao estado normal após sucesso ou erro.
+   - Verificar que falha no RFT006 não destrói dados SEFAZ nem ERP anterior.
+   - Verificar que importação válida continua funcionando.
+   - Verificar que matching permanece por chave + IE do emitente.
 
-## Critérios de aceite mapeados
-- Dados = `filtered` (respeita filtros e ordem da tela). 
-- Resumo presente em Excel (aba Resumo) e PDF (bloco no topo).
-- Colunas conforme especificação.
-- Rodapé do PDF em todas as páginas com as duas frases obrigatórias.
-- Mensagens amigáveis para "sem dados" e erro genérico.
-- Nomes de arquivo com data atual.
+Arquivos previstos para alteração:
+
+- `src/lib/importer.ts`
+- `src/components/ImportDialog.tsx`
+- Possivelmente `src/store/useStore.ts` apenas se for necessário reforçar a proteção contra ingestão vazia/inválida, sem alterar o motor.
+
+Não vou criar backend, banco, autenticação, migrations nem refatorar a arquitetura.
