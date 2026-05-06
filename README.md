@@ -20,19 +20,25 @@ A SEFAZ é a fonte de verdade. O ERP somente confirma escrituração.
 
 ## Estrutura dos PRDs (fonte de verdade funcional)
 
-Referência de nomenclatura e semântica: **PRD 00 — Dicionário de Domínio**.
-Todos os PRDs da pasta `/PRD` são a fonte de verdade funcional do projeto.
+O caminho oficial dos PRDs versionados neste repositório é `docs/PRD/`. Referências antigas a `/PRD` ou `public/PRD` devem ser lidas como `docs/PRD/` em novas tarefas e análises.
+
+Referência de nomenclatura e semântica: **PRD 00 — Dicionário de Domínio**. Quando um PRD citado não estiver versionado em `docs/PRD/`, registre a ausência no diagnóstico antes de alterar regras de negócio.
+
+PRDs atualmente versionados em `docs/PRD/`:
+
+- **PRD 03** — Interface e experiência operacional.
+- **PRD 05** — Motor de conferência determinístico.
+- **PRD 06** — Logs de erros e avisos operacionais.
+- **PRD 07** — Contrato de dados e pipeline estrutural.
+- **PRD 09** — Layout do relatório RFT006 ERP (base complementar de confirmação no ERP).
+
+PRDs previstos pela governança funcional, mas não versionados neste repositório no momento desta revisão:
 
 - **PRD 00** — Dicionário de domínio e governança de nomenclatura.
 - **PRD 01** — Visão geral e regras de negócio globais.
 - **PRD 02** — Importação de arquivos e snapshot de entrada.
-- **PRD 03** — Interface e experiência operacional.
 - **PRD 04** — Exceções e precedência de regras.
-- **PRD 05** — Motor de conferência determinístico.
-- **PRD 06** — Logs de erros e avisos operacionais.
-- **PRD 07** — Contrato de dados e pipeline estrutural.
 - **PRD 08** — Layout do relatório SEFAZ (mapeamento e identificação de colunas).
-- **PRD 09** — Layout do relatório RFT006 ERP (base complementar de confirmação no ERP).
 
 
 ## ⚠️ Convenção Crítica de Domínio (LEITURA OBRIGATÓRIA)

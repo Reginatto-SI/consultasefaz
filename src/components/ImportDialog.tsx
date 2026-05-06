@@ -18,12 +18,30 @@ type StageMsg =
   | "Processando linhas..."
   | "Atualizando conferência..."
   | "Finalizado com sucesso"
-  | "Erro no arquivo";
+  | string;
 
 function maskChave(chave: string): string {
   if (!chave) return "";
   if (chave.length <= 10) return chave;
   return `${chave.slice(0, 6)}...${chave.slice(-4)}`;
+}
+
+function isQuotaExceededError(error: any): boolean {
+  return error?.name === "QuotaExceededError"
+    || error?.code === 22
+    || String(error?.message || "").toLowerCase().includes("quota");
+}
+
+function summarizeFailure(results: ParseResult[], fallback: string): string {
+  const firstError = results.find((result) => result.errors.length > 0)?.errors[0];
+  return firstError || fallback;
+}
+
+function isLoadingStage(stage: StageMsg): boolean {
+  return stage === "Lendo arquivo..."
+    || stage === "Validando layout..."
+    || stage === "Processando linhas..."
+    || stage === "Atualizando conferência...";
 }
 
 // Pequeno yield para o React conseguir pintar a próxima etapa antes do trabalho pesado.
@@ -190,17 +208,21 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         return;
       }
 
-      setStage("Erro no arquivo");
-      toast.error("Nenhum arquivo SEFAZ foi processado com sucesso.");
+      const message = summarizeFailure(summary.results, "Nenhum arquivo SEFAZ foi processado com sucesso.");
+      setStage(message);
+      toast.error(message);
     } catch (error: any) {
-      setStage("Erro no arquivo");
+      const message = isQuotaExceededError(error)
+        ? "Não foi possível importar o arquivo porque o armazenamento local do navegador atingiu o limite. Limpe a análise atual ou reduza o lote."
+        : `Falha inesperada no processamento do lote SEFAZ: ${error?.message || "erro desconhecido"}`;
+      setStage(message);
       store.addLog({
         tipo: "importacao",
         nivel: "erro",
-        codigo_evento: "IMPORT_UNEXPECTED_SEFAZ",
-        mensagem_usuario: `Falha inesperada no processamento do lote SEFAZ: ${error?.message || "erro desconhecido"}`,
+        codigo_evento: isQuotaExceededError(error) ? "LOCAL_STORAGE_QUOTA" : "IMPORT_UNEXPECTED_SEFAZ",
+        mensagem_usuario: message,
       });
-      toast.error("Erro inesperado ao processar lote SEFAZ.");
+      toast.error(message);
     } finally {
       // PROTEÇÃO CRÍTICA: o botão NUNCA pode ficar preso em "Processando...".
       setProcessing(false);
@@ -227,17 +249,21 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       }
 
       // Falha total: snapshot ERP anterior é mantido (não chamamos ingestErp acima).
-      setStage("Erro no arquivo");
-      toast.error("Nenhum arquivo RFT006/ERP foi processado com sucesso. Os dados anteriores foram mantidos.");
+      const message = `${summarizeFailure(summary.results, "Nenhum arquivo RFT006/ERP foi processado com sucesso.")} Os dados anteriores foram mantidos.`;
+      setStage(message);
+      toast.error(message);
     } catch (error: any) {
-      setStage("Erro no arquivo");
+      const message = isQuotaExceededError(error)
+        ? "Não foi possível importar o arquivo porque o armazenamento local do navegador atingiu o limite. Limpe a análise atual ou reduza o lote."
+        : `Falha inesperada no processamento do lote RFT006: ${error?.message || "erro desconhecido"}`;
+      setStage(message);
       store.addLog({
         tipo: "importacao",
         nivel: "erro",
-        codigo_evento: "IMPORT_UNEXPECTED_ERP",
-        mensagem_usuario: `Falha inesperada no processamento do lote RFT006: ${error?.message || "erro desconhecido"}`,
+        codigo_evento: isQuotaExceededError(error) ? "LOCAL_STORAGE_QUOTA" : "IMPORT_UNEXPECTED_ERP",
+        mensagem_usuario: message,
       });
-      toast.error("Erro inesperado ao processar lote RFT006/ERP.");
+      toast.error(message);
     } finally {
       // PROTEÇÃO CRÍTICA: garante que o botão volta ao estado normal mesmo em falha.
       setProcessing(false);
@@ -258,9 +284,9 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const renderStageBanner = () => {
     if (stage === "idle") return null;
-    const isError = stage === "Erro no arquivo";
+    const isError = stage !== "Finalizado com sucesso" && !isLoadingStage(stage);
     const isDone = stage === "Finalizado com sucesso";
-    const isLoading = !isError && !isDone;
+    const isLoading = isLoadingStage(stage);
     return (
       <div
         className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
@@ -316,7 +342,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Importar Arquivos</DialogTitle>
-          <DialogDescription>Suporte para .xlsx e .xls. Múltiplos arquivos por lote.</DialogDescription>
+          <DialogDescription>Suporte para .xlsx e .xls. Múltiplos arquivos por lote. A análise importada fica apenas na sessão atual do navegador.</DialogDescription>
         </DialogHeader>
 
         {currentStep === 1 && (

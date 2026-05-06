@@ -16,9 +16,6 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
 const MAX_DATA_ROWS = 200_000;
 // Cooperative yield: a cada N linhas devolvemos o controle ao event loop para a UI respirar.
 const YIELD_EVERY = 2_000;
-// Timeout de segurança para a leitura do XLSX (parsing pode ser pesado em arquivos exóticos).
-const READ_TIMEOUT_MS = 30_000;
-
 const VALID_EXTS = [".xls", ".xlsx"];
 
 function hasValidExtension(name: string): boolean {
@@ -59,20 +56,6 @@ function parseDate(v: any): string {
 // Pequena pausa para devolver o controle ao event loop e impedir o travamento da UI.
 function yieldToUi(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-// Envolve uma promise em um timeout duro para evitar trava infinita.
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`Tempo limite excedido ao ${label}.`)), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      resolve(v);
-    }).catch((e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
 }
 
 export interface ParseResult {
@@ -318,18 +301,28 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   const COL_AA_EMIT_RAZAO = 26;
   const COL_AC_CHAVE = 28; // AC = Chave de acesso
 
-  // Detecção tolerante por nome do cabeçalho (fallback de validação).
-  const headerLower = headers.map((h) => (h ?? "").toString().toLowerCase());
-  const hasKeyByName = headerLower.some((h) => h.includes("chave") && h.includes("acesso"));
-  const hasIeByName = headerLower.some((h) => h.trim() === "ie" || h.includes("inscricao estadual") || h.includes("inscrição estadual"));
+  // PRD 09: o layout oficial usa Z = IE do emitente e AC = Chave de acesso.
+  // Validamos por nome para não aceitar apenas "quantidade de colunas" quando o cabeçalho está deslocado.
+  const normalizeHeader = (h: string) => h
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  const headerNorm = headers.map((h) => normalizeHeader(h ?? ""));
+  const isChaveHeader = (h: string) => h.includes("chave") && h.includes("acesso");
+  const isIeHeader = (h: string) => h === "ie" || h.includes("inscricao estadual");
 
-  // VALIDAÇÃO RÁPIDA DE LAYOUT antes do laço pesado (PRD 09).
-  // Bloqueia o arquivo inteiro quando coluna obrigatória não existe nem por posição nem por nome.
-  const chaveColExiste = headers.length > COL_AC_CHAVE || hasKeyByName;
-  const ieColExiste = headers.length > COL_Z_IE_EMITENTE || hasIeByName;
+  const chaveHeaderNaAC = isChaveHeader(headerNorm[COL_AC_CHAVE] || "");
+  const ieHeaderNaZ = isIeHeader(headerNorm[COL_Z_IE_EMITENTE] || "");
+  const chaveFallback = headerNorm.findIndex(isChaveHeader);
+  const ieFallback = headerNorm.findIndex((h, idx) => idx >= COL_Z_IE_EMITENTE && isIeHeader(h));
+  const chaveCol = chaveHeaderNaAC ? COL_AC_CHAVE : chaveFallback;
+  const ieCol = ieHeaderNaZ ? COL_Z_IE_EMITENTE : ieFallback;
+  const chaveColExiste = chaveCol >= 0;
+  const ieColExiste = ieCol >= 0;
 
   if (!chaveColExiste) {
-    result.errors.push("Arquivo RFT006 inválido: coluna 'Chave de acesso' não encontrada (PRD 09).");
+    result.errors.push("Cabeçalho RFT006 incompatível: coluna 'Chave de acesso' não encontrada.");
     result.diagnostics = {
       total_linhas_lidas: dataRows.length,
       linha_cabecalho: headerRow,
@@ -341,7 +334,7 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     return result;
   }
   if (!ieColExiste) {
-    result.errors.push("Arquivo RFT006 inválido: coluna 'IE' do emitente não encontrada (PRD 09).");
+    result.errors.push("Cabeçalho RFT006 incompatível: coluna 'IE' não encontrada.");
     result.diagnostics = {
       total_linhas_lidas: dataRows.length,
       linha_cabecalho: headerRow,
@@ -353,7 +346,7 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     return result;
   }
   if (dataRows.length === 0) {
-    result.errors.push("Arquivo RFT006 inválido: nenhuma linha de dados abaixo do cabeçalho.");
+    result.errors.push("Arquivo vazio ou sem linhas válidas para conferência.");
     result.diagnostics = {
       total_linhas_lidas: 0,
       linha_cabecalho: headerRow,
@@ -376,9 +369,9 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     if (!r) continue;
 
     // Chave de acesso é texto: nunca converter para número.
-    const chaveBruta = String(r[COL_AC_CHAVE] ?? "").trim();
+    const chaveBruta = String(r[chaveCol] ?? "").trim();
     const chave = normalizeChave(chaveBruta);
-    const ieEmitente = normalizeIE(String(r[COL_Z_IE_EMITENTE] ?? ""));
+    const ieEmitente = normalizeIE(String(r[ieCol] ?? ""));
 
     const payload: Record<string, any> = {};
     headers.forEach((h, idx) => {
@@ -427,7 +420,7 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   if (semChave > 0)
     result.warnings.push(`${semChave} linha(s) RFT006 sem chave de acesso. Elas foram ignoradas no matching.`);
   if (semIE > 0)
-    result.warnings.push(`${semIE} linha(s) RFT006 com chave de acesso, mas sem IE do emitente. Elas foram ignoradas no matching.`);
+    result.warnings.push(`${semIE} linha(s) RFT006 com chave de acesso, mas sem IE do emitente. Elas não confirmam matching por IE; a chave continua considerada existente no ERP.`);
 
   const elegiveis = regs!.filter((r) => !!r.chave_acesso && !!r.inscricao_estadual_emitente);
   const tempoMs = Math.round(performance.now() - t0);
@@ -435,7 +428,7 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   if (!regs!.length || !elegiveis.length) {
     // PROTEÇÃO: se não há linhas elegíveis, retornamos erro para o orquestrador NÃO
     // substituir o snapshot ERP atual nem rodar o motor classificando tudo como FALTANTE.
-    result.errors.push("Nenhuma linha elegível para matching encontrada no RFT006.");
+    result.errors.push("Arquivo vazio ou sem linhas válidas para conferência.");
     result.diagnostics = {
       total_linhas_lidas: dataRows.length,
       total_registros_estruturados: regs!.length,
@@ -468,6 +461,8 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     linha_cabecalho: headerRow,
     coluna_chave_encontrada: true,
     coluna_ie_encontrada: true,
+    coluna_chave_indice: chaveCol,
+    coluna_ie_indice: ieCol,
     tempo_ms: tempoMs,
     tempo_parse_ms: tempoMs,
   };
