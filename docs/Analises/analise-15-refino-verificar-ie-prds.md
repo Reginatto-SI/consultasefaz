@@ -16,7 +16,7 @@ Na Análise 14, o motor passou a marcar `IE_EMITENTE_AUSENTE_RFT006` quando dete
 
 ## PRDs ajustados
 
-Foram criados/atualizados os PRDs 03, 05, 06, 07 e 09 em `/docs/PRD/` com a regra oficial para `Verificar IE`, classificação por motivo operacional e distinção entre chave inexistente e chave existente com IE ausente/divergente.
+Foram criados/atualizados os PRDs 03, 05, 06, 07 e 09 em `docs/PRD/` com a regra oficial para `Verificar IE`, classificação por motivo operacional e distinção entre chave inexistente e chave existente com IE ausente/divergente.
 
 ## Regra final implementada
 

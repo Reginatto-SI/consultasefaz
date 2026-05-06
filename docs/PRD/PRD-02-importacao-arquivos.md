@@ -26,19 +26,17 @@ Referências obrigatórias de layout:
 - Ao finalizar lote válido, disparar conferência automática (PRD 05).
 
 ## 5. Campos mínimos por tipo
-SEFAZ: chave_nfe, destinatario_cnpj_cpf, status_sefaz, data_emissao (conforme mapeamento do PRD 08).
-RFT006/ERP: chave_acesso e inscricao_estadual_emitente (obrigatórios para linha elegível de matching), com demais campos estruturais conforme PRD 09.
+A importação deve entregar ao pipeline os campos estruturais mínimos definidos no PRD 07, respeitando a origem e os mapeamentos de layout do PRD 08 (SEFAZ) e do PRD 09 (RFT006/ERP).
 
-Regra obrigatória para IE do emitente no RFT006:
-- Se o arquivo não possuir coluna mapeável para `inscricao_estadual_emitente`, tratar como erro bloqueante do arquivo (PRD 09).
-- Se a coluna existir, mas uma linha com `chave_acesso` estiver sem `inscricao_estadual_emitente`, não bloquear o arquivo inteiro; marcar a linha como inelegível para matching.
-- Linha sem `chave_acesso` não participa do matching.
-- Linhas inelegíveis (sem `chave_acesso` ou com `chave_acesso` sem `inscricao_estadual_emitente`) devem ser preservadas no payload/registro de importação quando tecnicamente viável.
-- Linhas inelegíveis devem gerar aviso operacional quando representarem inconsistência relevante.
+Diretrizes de importação:
+- Campos SEFAZ devem ser resolvidos a partir do layout oficial do PRD 08.
+- Campos RFT006/ERP devem ser resolvidos a partir do layout oficial do PRD 09.
+- A elegibilidade de linhas RFT006 com chave/IE ausente pertence ao PRD 09.
+- A interpretação do impacto dessas linhas na classificação pertence exclusivamente ao PRD 05.
 
 ## 6. Normalização obrigatória
 - chave_nfe sem máscara e sem espaços.
-- cnpj/ie sem máscara.
+- CNPJ/CPF e IE sem máscara.
 - textos com trim e padronização de caixa.
 
 ## 7. Snapshot
@@ -54,8 +52,8 @@ Avisos: linhas RFT006 inelegíveis para matching (ex.: chave sem IE do emitente)
 Mensagens e histórico curto seguem PRD 06.
 
 ## 9. Conexão com outros PRDs
-- PRD 01: princípios globais e multiempresa.
-- PRD 05: consumo das entradas estruturadas.
+- PRD 01: princípios globais e escopo V1.
+- PRD 05: consumo das entradas estruturadas pelo motor, sem repetir regras de matching neste PRD.
 - PRD 06: exibição de feedback operacional.
 - PRD 07: contrato de dados mínimo.
 - PRD 08: contrato oficial de layout e mapeamento da entrada SEFAZ.

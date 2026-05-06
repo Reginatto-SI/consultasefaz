@@ -25,9 +25,11 @@ Exceção ativa sempre vence qualquer classificação automática.
 - atualizada_em
 
 ## 6. Ordem obrigatória de decisão
-1) Verificar exceção ativa
-2) Verificar validade de status SEFAZ
-3) Verificar matching com ERP
+1) Verificar exceção ativa.
+2) Se houver exceção ativa aplicável, a nota deve ser `DESCONSIDERADA`.
+3) Se não houver exceção ativa, devolver a decisão automática ao motor conforme PRD 05.
+
+Este PRD define apenas a precedência da exceção; matriz de status, validade SEFAZ e matching pertencem ao PRD 05.
 
 ## 7. Comportamentos obrigatórios
 - Exceção ativa prevalece sobre classificação automática.
@@ -54,18 +56,10 @@ Se a exceção existir mas a nota não estiver no snapshot SEFAZ atual:
 - PRD 07: contrato estrutural da exceção.
 
 
-## 11. Persistência de exceções na V1
+## 11. Persistência local, backup e limitações (V1)
 - Exceções são locais na V1.
 - Podem existir somente durante a sessão ou no armazenamento local do navegador.
 - Não há garantia de persistência corporativa.
-- Se o usuário limpar dados locais, exceções podem ser apagadas.
-- Não há workflow, usuário autenticado ou auditoria por usuário na V1.
-
-
-## 12. Persistência local, backup e limitações (V1)
-- Exceções são persistidas no armazenamento local do navegador.
 - Exportação/importação de exceções é o mecanismo oficial de backup manual.
 - Se o navegador for limpo, as exceções podem ser perdidas.
-- Não há persistência em servidor.
-- Não há usuário autenticado na V1.
-- Não há auditoria corporativa por usuário na V1.
+- Não há persistência em servidor, usuário autenticado, workflow ou auditoria corporativa por usuário na V1.

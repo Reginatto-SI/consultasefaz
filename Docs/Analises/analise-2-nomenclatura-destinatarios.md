@@ -8,13 +8,13 @@
 
 ## 2. PRDs ajustados
 
-- `Docs/PRD/PRD 01 — ConsultaSefaz — Conferência Inteligente de Notas Fiscais.txt`
+- `docs/PRD/PRD-01-visao-geral-regras-negocio.md`
   - Adicionada seção de convenção de nomenclatura (Destinatários SEFAZ).
   - Ajustado texto de visão consolidada para destinatário.
-- `Docs/PRD/PRD 03 — ConsultaSefaz — Interface e Experiência do Usuário (UXUI).txt`
+- `docs/PRD/PRD-03-interface-experiencia-usuario.md`
   - Adicionada convenção de nomenclatura para UI.
   - Filtro obrigatório "Empresa" ajustado para "Destinatário".
-- `Docs/PRD/PRD 07 — ConsultaSefaz — Contrato de Dados e Pipeline Estrutural.txt`
+- `docs/PRD/PRD-07-contrato-dados-pipeline.md`
   - Adicionada seção semântica para V1.
   - Entidade 4.1 renomeada para "Destinatário SEFAZ" (sem mudar campos técnicos).
   - Snapshot textual ajustado para "destinatários impactados".
