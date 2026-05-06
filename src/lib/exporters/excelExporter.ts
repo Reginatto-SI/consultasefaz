@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import type { DatasetLinha } from "@/lib/types";
+import { IE_ISENTO_MARKER } from "@/lib/engine";
 import {
   ConferenciaStats,
   FiltrosConferencia,
@@ -13,6 +14,10 @@ import {
   getNumeroNota,
   getValorTotal,
 } from "./helpers";
+
+function formatIEExportacao(ie?: string) {
+  return ie === IE_ISENTO_MARKER ? "Isento" : ie ?? "";
+}
 
 export function exportarExcelConferencia(
   linhas: DatasetLinha[],
@@ -57,8 +62,8 @@ export function exportarExcelConferencia(
     getNumeroNota(l),
     getEmitenteNome(l),
     getEmitenteDoc(l),
-    l.ie_emitente_sefaz ?? "",
-    l.ie_emitente_rft006_encontrada ?? "",
+    formatIEExportacao(l.ie_emitente_sefaz),
+    formatIEExportacao(l.ie_emitente_rft006_encontrada),
     l.status_sefaz ?? "",
     l.resultado_matching ?? "",
     l.motivo_divergencia ?? "",

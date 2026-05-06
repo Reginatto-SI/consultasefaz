@@ -107,8 +107,9 @@ Este documento é a fonte de verdade de comportamento de UI/UX, estados de tela 
 
 - A tabela principal deve exibir somente os status públicos definidos no PRD 01.
 - A UI não cria status funcional novo; ela apenas representa o resultado produzido pelo PRD 05.
-- Problemas de IE devem usar indicação visual complementar `Verificar IE` quando o dataset final trouxer motivo/resultado de IE conforme PRD 05/PRD 07.
+- Problemas reais de IE devem usar indicação visual complementar `Verificar IE` quando o dataset final trouxer motivo/resultado de IE conforme PRD 05/PRD 07.
 - O badge `Verificar IE` é complementar e não substitui o badge principal de status público.
+- Quando a equivalência isento/ausente confirmar matching conforme PRD 05, o drawer deve apresentar a IE isenta de forma amigável (`Isento`) quando essa for a origem real, ou `—` quando houver ausência real, sem exibir `Verificar IE`.
 
 ## 15. Drawer da nota — auditoria de matching
 

@@ -149,7 +149,7 @@ export const useStore = create<State>()(
             nivel: "aviso",
             arquivo_nome: arquivo,
             codigo_evento: "ERP_SEM_IE",
-            mensagem_usuario: `${semIE} registro(s) RFT006 com chave sem IE do emitente (não confirmam matching por IE).`,
+            mensagem_usuario: `${semIE} registro(s) RFT006 com chave sem IE do emitente. O motor avaliará se há isenção compatível ou divergência real.`,
           });
         }
         const t0 = performance.now();

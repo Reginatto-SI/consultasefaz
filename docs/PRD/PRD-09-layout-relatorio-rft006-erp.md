@@ -120,6 +120,7 @@ Devem permitir continuidade com registro no PRD 06:
 - `Z = IE` deve ser interpretada como `inscricao_estadual_emitente`.
 - `AC = Chave de acesso` deve ser interpretada como `chave_acesso`.
 - `chave_acesso` e `inscricao_estadual_emitente` são os campos RFT006 disponibilizados ao motor conforme PRD 05.
+- A coluna `IE` pode conter texto operacional de isenção, como `ISENTO`, `ISENTA` ou equivalente; o valor bruto deve ser preservado no payload quando tecnicamente viável, e a normalização/equivalência para matching pertence ao PRD 05.
 - Este PRD não define matriz de matching ou classificação; define apenas origem, layout e elegibilidade dos campos RFT006.
 
 ## 16. Integração com PRD 02, PRD 05, PRD 06, PRD 07 e PRD 08

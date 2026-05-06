@@ -19,14 +19,56 @@ export function normalizeCnpj(s: string): string {
   return (s || "").replace(/\D/g, "").trim();
 }
 
+export const IE_ISENTO_MARKER = "__ISENTO__";
+
 export function normalizeIE(value?: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
 
-  // Removemos zeros à esquerda para compatibilizar IE textual da SEFAZ com IE numérica do RFT006/Maxicon no matching.
-  const numeros = String(value).replace(/\D/g, "");
-  const semZerosAEsquerda = numeros.replace(/^0+/, "");
+  const textoOriginal = String(value).trim();
+  if (!textoOriginal || textoOriginal === "—" || textoOriginal === "-") return undefined;
 
-  return semZerosAEsquerda || undefined;
+  // PRD 05: IE do emitente isento precisa de marcador interno determinístico para
+  // diferenciar isenção textual de ausência real. Não remova essa regra: sem ela,
+  // ERP/RFT006 com "ISENTO" volta a ser tratado como IE ausente/divergente.
+  const textoNormalizado = textoOriginal
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  const numeros = textoOriginal.replace(/\D/g, "");
+  if (numeros) {
+    // Removemos zeros à esquerda para compatibilizar IE textual da SEFAZ com IE numérica do RFT006/Maxicon no matching.
+    const semZerosAEsquerda = numeros.replace(/^0+/, "");
+    return semZerosAEsquerda || undefined;
+  }
+
+  const termosIsencao = new Set([
+    "ISENTO",
+    "ISENTA",
+    "ISENCAO",
+    "SEM IE",
+    "SEM INSCRICAO",
+    "SEM INSCRICAO ESTADUAL",
+    "NAO CONTRIBUINTE",
+  ]);
+
+  return termosIsencao.has(textoNormalizado) ? IE_ISENTO_MARKER : undefined;
+}
+
+function isIEIsento(ie?: string): boolean {
+  return ie === IE_ISENTO_MARKER;
+}
+
+function isIECompativel(ieSefaz?: string, ieErp?: string): boolean {
+  if (ieSefaz && ieErp && ieSefaz === ieErp) return true;
+
+  // PRD 05: isenção textual em um lado autoriza equivalência com ausência real no outro.
+  // Ausência pura contra IE numérica continua divergente.
+  return (isIEIsento(ieSefaz) && !ieErp)
+    || (!ieSefaz && isIEIsento(ieErp));
 }
 
 export function normalizeStatus(s: string): StatusSefaz {
@@ -120,12 +162,12 @@ export function rodarMotor(input: MotorInput): DatasetLinha[] {
       // Diferença crítica: uma linha RFT006 sem IE é inelegível para confirmar matching por chave+IE,
       // porém ainda comprova que a chave existe no ERP. Esse cenário é erro de escrituração (IRREGULAR),
       // não ausência de chave (FALTANTE).
-      ie_emitente_confere = !!ieEmitenteSefaz && erpMatches.some((r) => {
+      ie_emitente_confere = erpMatches.some((r) => {
         const ieErp = normalizeIE(r.inscricao_estadual_emitente);
         if (ieErp && !ie_emitente_rft006_encontrada) ie_emitente_rft006_encontrada = ieErp;
         if (ieErp) possuiLinhaErpComIE = true;
         if (!ieErp) possuiLinhaErpSemIE = true;
-        return !!ieErp && ieErp === ieEmitenteSefaz;
+        return isIECompativel(ieEmitenteSefaz, ieErp);
       });
 
       if (ie_emitente_confere) {
@@ -160,6 +202,7 @@ export function rodarMotor(input: MotorInput): DatasetLinha[] {
     // 2) chave existe e IE confirma => sem divergência
     // 3) chave existe e todas as linhas estão sem IE => IE_EMITENTE_AUSENTE_RFT006
     // 4) chave existe e há IE preenchida divergente (inclusive cenário misto com linhas sem IE) => IE_EMITENTE_DIVERGENTE
+    // Observação PRD 05: IE isenta compatível com ausência já chega aqui como CONFIRMADO.
     const motivoDivergencia = resultado_matching === "CONFIRMADO"
       ? null
       : resultado_matching === "IE_EMITENTE_DIVERGENTE" && possuiLinhaErpSemIE && !possuiLinhaErpComIE

@@ -10,6 +10,11 @@ import type { DatasetLinha } from "@/lib/types";
 import { Ban, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { formatFiscalDateBR } from "@/lib/fiscalDate";
+import { IE_ISENTO_MARKER } from "@/lib/engine";
+
+function formatIEAuditoria(ie?: string) {
+  return ie === IE_ISENTO_MARKER ? "Isento" : ie ?? "—";
+}
 
 export function DetailDrawer({
   linha,
@@ -105,11 +110,11 @@ export function DetailDrawer({
               </div>
               <div>
                 <dt className="text-muted-foreground text-xs">IE SEFAZ</dt>
-                <dd className="font-medium">{linha.ie_emitente_sefaz ?? "—"}</dd>
+                <dd className="font-medium">{formatIEAuditoria(linha.ie_emitente_sefaz)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground text-xs">IE RFT006 encontrada</dt>
-                <dd className="font-medium">{linha.ie_emitente_rft006_encontrada ?? "—"}</dd>
+                <dd className="font-medium">{formatIEAuditoria(linha.ie_emitente_rft006_encontrada)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground text-xs">Motivo divergência</dt>

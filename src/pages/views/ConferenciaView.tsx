@@ -286,11 +286,13 @@ function formatDataEmissao(linha: DatasetLinha) {
   return formatFiscalDateBR(linha.data_emissao);
 }
 
-function renderMotivoIE(linha: DatasetLinha) {
-  const motivoIE = linha.resultado_matching === "IE_EMITENTE_DIVERGENTE"
+export function shouldShowVerificarIE(linha: Pick<DatasetLinha, "resultado_matching" | "motivo_divergencia">) {
+  return linha.resultado_matching === "IE_EMITENTE_DIVERGENTE"
     || linha.motivo_divergencia === "IE_EMITENTE_AUSENTE_RFT006";
+}
 
-  if (!motivoIE) return null;
+function renderMotivoIE(linha: DatasetLinha) {
+  if (!shouldShowVerificarIE(linha)) return null;
 
   return (
     <span className="inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">

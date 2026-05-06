@@ -227,7 +227,7 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       const destCnpj = normalizeCnpj(String(r[COL_O_DEST_CNPJ] ?? ""));
       const status = normalizeStatus(String(r[COL_I_STATUS] ?? ""));
       const ieEmitente = normalizeIE(String(r[COL_L_IE_EMITENTE] ?? ""));
-      if (!chave || !destCnpj || !ieEmitente) {
+      if (!chave || !destCnpj) {
         descartadas++;
         continue;
       }
@@ -239,14 +239,14 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
 
       payload.chave_nfe = chave;
       payload.status_sefaz = status;
-      payload.emitente_inscricao_estadual = ieEmitente;
+      payload.emitente_inscricao_estadual = ieEmitente ?? "";
       payload.destinatario_cnpj_cpf = destCnpj;
 
       notas!.push({
         chave_nfe: chave,
         status_sefaz: status,
         data_emissao: parseDate(r[COL_A_DATA_EMISSAO]),
-        emitente_inscricao_estadual: ieEmitente,
+        emitente_inscricao_estadual: ieEmitente ?? "",
         emitente_cnpj_cpf: normalizeCnpj(String(r[COL_J_EMITENTE_CNPJ] ?? "")) || undefined,
         emitente_razao_social: String(r[COL_K_EMITENTE_RAZAO] ?? "").trim() || undefined,
         destinatario_cnpj_cpf: destCnpj,
@@ -262,7 +262,7 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     }
 
     if (descartadas > 0)
-      result.warnings.push(`${descartadas} linha(s) SEFAZ descartada(s) por ausência de chave, destinatário ou IE do emitente.`);
+      result.warnings.push(`${descartadas} linha(s) SEFAZ descartada(s) por ausência de chave ou destinatário.`);
     if (!notas!.length) {
       result.errors.push("Nenhuma linha válida encontrada no arquivo SEFAZ.");
       result.diagnostics = {
@@ -420,14 +420,14 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   if (semChave > 0)
     result.warnings.push(`${semChave} linha(s) RFT006 sem chave de acesso. Elas foram ignoradas no matching.`);
   if (semIE > 0)
-    result.warnings.push(`${semIE} linha(s) RFT006 com chave de acesso, mas sem IE do emitente. Elas não confirmam matching por IE; a chave continua considerada existente no ERP.`);
+    result.warnings.push(`${semIE} linha(s) RFT006 com chave de acesso, mas sem IE do emitente. Elas serão avaliadas pelo motor; a chave continua considerada existente no ERP.`);
 
-  const elegiveis = regs!.filter((r) => !!r.chave_acesso && !!r.inscricao_estadual_emitente);
+  const comChaveEstruturada = regs!.filter((r) => !!r.chave_acesso);
   const tempoMs = Math.round(performance.now() - t0);
 
-  if (!regs!.length || !elegiveis.length) {
-    // PROTEÇÃO: se não há linhas elegíveis, retornamos erro para o orquestrador NÃO
-    // substituir o snapshot ERP atual nem rodar o motor classificando tudo como FALTANTE.
+  if (!regs!.length || !comChaveEstruturada.length) {
+    // PRD 05/09: linha com chave e IE ausente continua estruturada para o motor decidir
+    // entre divergência real e equivalência fiscal de isenção. Só bloqueamos se não houver chave.
     result.errors.push("Arquivo vazio ou sem linhas válidas para conferência.");
     result.diagnostics = {
       total_linhas_lidas: dataRows.length,
@@ -439,7 +439,7 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       total_chave_tamanho_invalido: chaveInvalidaTamanho,
       chaves_amostra_5: chavesAmostra,
       linha_cabecalho: headerRow,
-      motivo_bloqueio: "ERP_SEM_LINHAS_ELEGIVEIS",
+      motivo_bloqueio: "ERP_SEM_LINHAS_COM_CHAVE",
       tempo_ms: tempoMs,
       tempo_parse_ms: tempoMs,
     };
