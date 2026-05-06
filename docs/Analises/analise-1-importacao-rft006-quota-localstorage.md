@@ -4,22 +4,15 @@
 
 ### PRDs consultados
 
-Os arquivos solicitados em `public/PRD` não existem neste repositório. Foram usados os PRDs equivalentes disponíveis em `docs/PRD`:
+Nota histórica: esta análise foi criada antes da consolidação documental dos PRDs em `docs/PRD/`. Naquele momento, algumas referências solicitadas vinham de caminhos legados e nem todos os PRDs oficiais estavam presentes no caminho canônico. Após o refinamento documental, os PRDs 00 a 09 estão consolidados em `docs/PRD/`.
+
+PRDs equivalentes usados na análise original:
 
 - `docs/PRD/PRD-05-motor-conferencia.md`
 - `docs/PRD/PRD-06-logs-erros-operacionais.md`
 - `docs/PRD/PRD-07-contrato-dados-pipeline.md`
 - `docs/PRD/PRD-09-layout-relatorio-rft006-erp.md`
 - `docs/PRD/PRD-03-interface-experiencia-usuario.md`
-
-PRDs solicitados e não encontrados:
-
-- `public/PRD/PRD 00 — ConsultaSefaz — Dicionário de Domínio.txt`
-- `public/PRD/PRD 02 — ConsultaSefaz — Módulo de Importação de Arquivos.txt`
-- `public/PRD/PRD 05 — ConsultaSefaz — Motor de Conferência.txt`
-- `public/PRD/PRD 06 — ConsultaSefaz — Logs de Erros Operacionais.txt`
-- `public/PRD/PRD 07 — ConsultaSefaz — Contrato de Dados e Pipeline Estrutural.txt`
-- `public/PRD/PRD 09 — ConsultaSefaz — Layout do Relatório RFT006 ERP.txt`
 
 ### Onde o estado `consultasefaz-store` é persistido
 
@@ -209,7 +202,7 @@ Linhas sem chave continuam sendo ignoradas no matching. Linhas com chave e sem I
 - Arquivos RFT006 com chave já corrompida pelo Excel antes da importação ainda podem gerar chave com tamanho diferente de 44 dígitos.
 - O fallback por nome de cabeçalho foi mantido de forma conservadora para não rejeitar exportações com pequenas variações, mas a fonte de verdade continua sendo Z = IE e AC = Chave de acesso.
 - O ambiente local não permitiu instalar dependências via `npm ci`/`npm install` porque o registry retornou 403 para `@supabase/supabase-js`.
-- O caminho oficial dos PRDs versionados foi padronizado no `README.md` como `docs/PRD/`; referências antigas a `/PRD` ou `public/PRD` devem ser tratadas como referências legadas.
+- O caminho oficial dos PRDs versionados foi padronizado no `README.md` como `docs/PRD/`; referências antigas a `docs/PRD/` (referência legado) ou `docs/PRD/` (referência legado já consolidada) devem ser tratadas como referências legadas.
 
 ## 8. Perguntas pendentes
 

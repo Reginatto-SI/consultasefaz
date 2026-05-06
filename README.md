@@ -1,136 +1,124 @@
-# ConsultaSefaz — Conferência Inteligente de Notas Fiscais
+# ConsultaSefaz
 
-## Objetivo do sistema
-O ConsultaSefaz compara relatórios da SEFAZ com relatórios de ERP para classificar notas fiscais de entrada em:
-- OK
-- FALTANTE
-- IRREGULAR
-- DESCONSIDERADA
+## Visão do sistema
 
-A SEFAZ é a fonte de verdade. O ERP somente confirma escrituração.
+O ConsultaSefaz é uma ferramenta local de conferência inteligente de notas fiscais de entrada. A V1 compara o relatório da SEFAZ com o relatório RFT006 do ERP para apoiar a identificação de notas confirmadas, faltantes, irregulares ou desconsideradas por exceção operacional.
 
-## Visão geral do fluxo operacional
-1. Importar arquivos SEFAZ e ERP.
-2. Normalizar e validar dados mínimos.
-3. Aplicar snapshot de entrada local (memória e/ou armazenamento local do navegador).
-4. Executar motor de conferência determinístico.
-5. Aplicar exceções manuais locais com prioridade máxima.
-6. Exibir resultados por destinatário e consolidado.
-7. Exibir logs operacionais locais para correção rápida e exportar resultado final.
+A **SEFAZ é a fonte de verdade** do universo de notas fiscais. O **ERP/RFT006 é fonte complementar** e apenas confirma escrituração conforme as regras do motor de conferência.
 
-## Estrutura dos PRDs (fonte de verdade funcional)
+## Objetivo
 
-O caminho oficial dos PRDs versionados neste repositório é `docs/PRD/`. Referências antigas a `/PRD` ou `public/PRD` devem ser lidas como `docs/PRD/` em novas tarefas e análises.
+- Conferir notas fiscais de entrada a partir de arquivos importados localmente.
+- Exibir visão por destinatário fiscal e visão consolidada.
+- Permitir exceções locais para desconsideração operacional.
+- Registrar logs operacionais curtos para orientar correções de importação/processamento.
 
-Referência de nomenclatura e semântica: **PRD 00 — Dicionário de Domínio**. Quando um PRD citado não estiver versionado em `docs/PRD/`, registre a ausência no diagnóstico antes de alterar regras de negócio.
+A definição dos status públicos pertence ao PRD 01. A classificação, matching, `resultado_matching`, `motivo_divergencia` e regra `Verificar IE` pertencem ao PRD 05.
 
-PRDs atualmente versionados em `docs/PRD/`:
+## Arquitetura funcional da V1
 
-- **PRD 03** — Interface e experiência operacional.
-- **PRD 05** — Motor de conferência determinístico.
-- **PRD 06** — Logs de erros e avisos operacionais.
-- **PRD 07** — Contrato de dados e pipeline estrutural.
-- **PRD 09** — Layout do relatório RFT006 ERP (base complementar de confirmação no ERP).
+- Aplicação **browser-first**, executada no navegador.
+- Sem backend, banco de dados, autenticação ou upload de arquivos para servidor na V1.
+- Importação, normalização, snapshot, motor e exibição ocorrem localmente.
+- Análises pesadas e payloads completos pertencem ao snapshot local da sessão.
+- Exceções e logs seguem persistência local/curta conforme os PRDs específicos.
 
-PRDs previstos pela governança funcional, mas não versionados neste repositório no momento desta revisão:
+Detalhes estruturais de entidades, snapshots, payloads e dataset final pertencem ao PRD 07.
 
-- **PRD 00** — Dicionário de domínio e governança de nomenclatura.
-- **PRD 01** — Visão geral e regras de negócio globais.
-- **PRD 02** — Importação de arquivos e snapshot de entrada.
-- **PRD 04** — Exceções e precedência de regras.
-- **PRD 08** — Layout do relatório SEFAZ (mapeamento e identificação de colunas).
+## Fluxo operacional resumido
 
+1. Importar relatório SEFAZ e relatório RFT006/ERP.
+2. Normalizar e validar entradas conforme PRD 02, PRD 08 e PRD 09.
+3. Montar snapshot local conforme PRD 02/PRD 07.
+4. Executar o motor determinístico conforme PRD 05.
+5. Aplicar exceções locais conforme PRD 04.
+6. Exibir resultados e detalhes conforme PRD 03.
+7. Registrar erros/avisos conforme PRD 06.
+8. Exportar resultados e backups operacionais quando aplicável.
 
-## ⚠️ Convenção Crítica de Domínio (LEITURA OBRIGATÓRIA)
-- O sistema NÃO é multiempresa no sentido de ERP/tenant.
-- O sistema é multidestinatário (CNPJs conferidos).
-- `empresa_id` é legado técnico e NÃO representa organização.
-- Desenvolvedores devem obrigatoriamente ler o PRD 00 antes de qualquer alteração.
+## Estrutura oficial dos PRDs
+
+O caminho oficial e único dos PRDs versionados é:
+
+```text
+docs/PRD/
+```
+
+Convenções obrigatórias:
+
+- Não usar `/PRD`, `public/PRD` ou `Docs/PRD` como fonte documental.
+- Referências antigas a caminhos legados são históricas e devem ser convertidas para `docs/PRD/` em novas tarefas.
+- Todo PRD citado em tarefas futuras deve existir em `docs/PRD/`.
+- A matriz de responsabilidade documental está em `docs/PRD/GOVERNANCA-DOCUMENTAL.md` e deve ser lida antes de alterações amplas na documentação.
+
+## PRDs versionados
+
+| Ordem | PRD | Arquivo | Responsabilidade principal |
+|---:|---|---|---|
+| 1 | PRD 00 — Dicionário de Domínio | `docs/PRD/PRD-00-dicionario-dominio.md` | Nomenclatura, semântica e blindagem conceitual. |
+| 2 | PRD 01 — Visão Geral e Regras de Negócio | `docs/PRD/PRD-01-visao-geral-regras-negocio.md` | Objetivos, escopo, princípios e status públicos. |
+| 3 | PRD 07 — Contrato de Dados e Pipeline | `docs/PRD/PRD-07-contrato-dados-pipeline.md` | Entidades, campos, tipos, snapshots, payloads e dataset final. |
+| 4 | PRD 02 — Importação de Arquivos | `docs/PRD/PRD-02-importacao-arquivos.md` | Parsing, validação, normalização e snapshot de entrada. |
+| 5 | PRD 08 — Layout SEFAZ | `docs/PRD/PRD-08-layout-relatorio-sefaz.md` | Layout, colunas e origem dos campos SEFAZ. |
+| 6 | PRD 09 — Layout RFT006 ERP | `docs/PRD/PRD-09-layout-relatorio-rft006-erp.md` | Layout, colunas, mapeamentos e elegibilidade do RFT006. |
+| 7 | PRD 05 — Motor de Conferência | `docs/PRD/PRD-05-motor-conferencia.md` | Matching, algoritmo, matriz de decisão e classificação final. |
+| 8 | PRD 04 — Exceções e Regras Operacionais | `docs/PRD/PRD-04-excecoes-regras-operacionais.md` | Precedência, ativação/inativação, backup e compatibilidade local. |
+| 9 | PRD 03 — Interface e Experiência do Usuário | `docs/PRD/PRD-03-interface-experiencia-usuario.md` | UX/UI, filtros, badges, drawers, fluxos e estados visuais. |
+| 10 | PRD 06 — Logs de Erros Operacionais | `docs/PRD/PRD-06-logs-erros-operacionais.md` | Categorias, mensagens, avisos, erros e retenção curta de logs. |
+| 11 | Governança Documental | `docs/PRD/GOVERNANCA-DOCUMENTAL.md` | Fonte única por assunto, precedência e regras de manutenção documental. |
 
 ## Ordem recomendada de leitura
-1. PRD 00
-2. PRD 01
-3. PRD 07
-4. PRD 02
-5. PRD 08
-6. PRD 09
-7. PRD 05
-8. PRD 04
-9. PRD 03
-10. PRD 06
-## Ordem sugerida de desenvolvimento
-1. Contratos de dados e pipeline (PRD 07)
-2. Importação (PRD 02)
-3. Motor de conferência (PRD 05)
-4. Exceções (PRD 04)
-5. Interface (PRD 03)
-6. Logs operacionais (PRD 06)
-7. Ajustes de regras globais e validação final (PRD 01)
 
-## Principais regras de negócio
-- Multidestinatário desde a V1 (sem multi-tenant real, conforme PRD 00).
-- Destinatário da nota definido somente pela SEFAZ (CNPJ destinatário).
-- ERP não define destinatário.
-- Exceções ativas sobrescrevem regras automáticas.
-- Processamento determinístico: mesma entrada, mesmo resultado.
-- Modelo snapshot na V1, sem histórico completo de execuções.
+1. Governança Documental.
+2. PRD 00 — Dicionário de Domínio.
+3. PRD 01 — Visão Geral e Regras de Negócio.
+4. PRD 07 — Contrato de Dados e Pipeline.
+5. PRD 02 — Importação de Arquivos.
+6. PRD 08 — Layout SEFAZ.
+7. PRD 09 — Layout RFT006 ERP.
+8. PRD 05 — Motor de Conferência.
+9. PRD 04 — Exceções e Regras Operacionais.
+10. PRD 03 — Interface e Experiência do Usuário.
+11. PRD 06 — Logs de Erros Operacionais.
 
-## Principais decisões arquiteturais
-- Base SEFAZ como universo de conferência.
-- ERP como base complementar de matching.
-- Classificação por regras explícitas e sem heurística complexa.
-- Persistência local e curta de logs operacionais.
-- Estrutura simples para facilitar evolução futura.
+## Ordem sugerida de implementação
 
-## Limites da V1
-- Ferramenta client-side executada no navegador.
-- Sem banco de dados na V1.
-- Sem backend na V1.
-- Sem autenticação na V1.
+1. Validar domínio, escopo e governança documental (Governança, PRD 00 e PRD 01).
+2. Garantir contratos de dados e pipeline (PRD 07).
+3. Ajustar importação e layouts de entrada (PRD 02, PRD 08 e PRD 09).
+4. Ajustar motor somente com base no PRD 05.
+5. Ajustar exceções somente com base no PRD 04.
+6. Refletir comportamento na interface conforme PRD 03.
+7. Registrar feedback operacional conforme PRD 06.
+
+## Convenções críticas de domínio
+
+- O ConsultaSefaz é **multidestinatário**, não multiempresa SaaS.
+- `empresa_id` é legado técnico/local e representa o destinatário fiscal no estado da V1.
+- A interface deve usar **Destinatário** ou **Destinatário SEFAZ**, não “empresa” como conceito funcional.
+- O destinatário da nota é definido somente pela SEFAZ.
+- O ERP/RFT006 não define destinatário e não altera pertencimento da nota.
+- O emitente é fornecedor/remetente e nunca define agrupamento principal.
+
+A fonte oficial dessas definições é o PRD 00.
+
+## Visão da V1 e limites conhecidos
+
+- Sem backend, banco de dados, autenticação, RLS/multi-tenant real ou upload para servidor.
 - Sem integração automática com API da SEFAZ.
-- Sem histórico completo de snapshots/execuções (sem persistência corporativa em servidor).
-- Sem auditoria avançada por usuário.
+- Sem histórico completo de execuções ou auditoria avançada por usuário.
 - Sem workflow de aprovação de exceções.
-- Sem validações fiscais financeiras avançadas.
+- Sem validações fiscais/financeiras avançadas.
+- Sem suporte documentado a múltiplos layouts SEFAZ/RFT006 simultâneos sem revisão dos PRDs de layout.
 
-## Evoluções futuras
-- Banco de dados/backend apenas se necessário em evolução futura (V2+).
-- Histórico completo de execuções e auditoria.
-- Integrações externas automatizadas.
-- Regras fiscais complementares.
-- Alertas e observabilidade avançada.
-- Recursos de governança multiusuário.
+## Direcionamento para Codex e Lovable
 
-
-## Ordem obrigatória de leitura
-1. PRD 00
-2. PRD 01
-3. PRD 07
-
-
-## Regra conceitual oficial da V1
-> Ferramenta local de conferência rápida, com processamento client-side, sem banco de dados e sem persistência corporativa.
-
-Observações operacionais da V1:
-- Não há upload para servidor; os arquivos são lidos no navegador.
-- Estado pode existir em memória e/ou armazenamento local do navegador.
-- A manutenção dos dados depende da estratégia local e não possui garantia corporativa de retenção.
-- Exportação é o meio oficial para conservar o resultado da conferência.
-
-
-## Regras específicas da V1 sem banco
-- Destinatários são identificados automaticamente nas importações SEFAZ pelos campos `destinatario_cnpj_cpf` e `destinatario_razao_social`.
-- A tela de destinatários é informativa (consulta/listagem local), sem CRUD corporativo completo na V1.
-- Exceções são salvas localmente no navegador e aplicadas pelo motor de conferência.
-- Exceções devem poder ser exportadas/importadas para backup manual entre ambientes locais.
-- Se os dados do navegador forem limpos, as exceções locais podem ser perdidas.
-- Banco de dados, backend e autenticação ficam para evolução futura (V2+), se necessários.
-
-
-## Enriquecimento local de destinatários na V1
-- A V1 segue sem banco de dados, sem backend e sem autenticação.
-- Destinatários podem ser enriquecidos por cadastro local fixo de destinatários conhecidos (configuração operacional local em código).
-- O apelido é usado para facilitar leitura na UI quando houver correspondência por CNPJ/CPF.
-- CNPJ/CPF continua sendo a chave de identificação do destinatário da nota.
-- A razão social original da SEFAZ permanece rastreável no payload/detalhe.
-- O cadastro local conhecido não altera matching, classificação ou precedência de exceções.
+- Não transformar o README em PRD de regra detalhada; ele deve apontar para os PRDs.
+- Para domínio e nomenclatura, usar PRD 00.
+- Para status públicos e comportamento global, usar PRD 01.
+- Para importação/snapshot, usar PRD 02 e PRD 07.
+- Para matching, IE, `Verificar IE`, `resultado_matching`, `motivo_divergencia` e classificação, usar PRD 05.
+- Para layout SEFAZ/RFT006, usar PRD 08/09.
+- Para exceções, usar PRD 04.
+- Para UI e logs, usar PRD 03/06.
+- Não inferir regra de negócio ausente: registrar dúvida em análise antes de implementar.
