@@ -211,7 +211,7 @@ const Index = () => {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Limpar análise atual?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Tem certeza que deseja limpar a análise atual? Os relatórios importados, resultados da conferência e filtros serão removidos. As exceções cadastradas serão mantidas.
+                          Tem certeza que deseja limpar a análise atual? Os relatórios SEFAZ/RFT006 importados, resultados da conferência, logs operacionais, execução atual e filtros serão removidos. As exceções cadastradas serão mantidas.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   DatasetLinha,
   Empresa,
@@ -12,6 +12,28 @@ import { rodarMotor, normalizeChave, normalizeCnpj } from "@/lib/engine";
 import { findDestinatarioConhecidoByDocumento } from "@/config/destinatariosConhecidos";
 
 const uid = () => Math.random().toString(36).slice(2, 11);
+
+const MAX_LOGS = 80;
+const MAX_LOG_TEXT = 500;
+
+function truncateForLog(value: string | undefined): string | undefined {
+  if (!value) return value;
+  return value.length > MAX_LOG_TEXT ? `${value.slice(0, MAX_LOG_TEXT)}…` : value;
+}
+
+const safeLocalStorage = {
+  getItem: (name: string) => window.localStorage.getItem(name),
+  removeItem: (name: string) => window.localStorage.removeItem(name),
+  setItem: (name: string, value: string) => {
+    try {
+      window.localStorage.setItem(name, value);
+    } catch (error) {
+      // O estado pesado da análise fica em memória; se o navegador negar persistência,
+      // a sessão atual continua funcional e evitamos novo set/addLog que causaria loop.
+      console.warn("ConsultaSefaz: falha ao persistir estado leve no localStorage.", error);
+    }
+  },
+};
 
 interface State {
   empresas: Empresa[];
@@ -127,7 +149,7 @@ export const useStore = create<State>()(
             nivel: "aviso",
             arquivo_nome: arquivo,
             codigo_evento: "ERP_SEM_IE",
-            mensagem_usuario: `${semIE} registro(s) RFT006 com chave sem IE do emitente (inelegíveis para matching).`,
+            mensagem_usuario: `${semIE} registro(s) RFT006 com chave sem IE do emitente (não confirmam matching por IE).`,
           });
         }
         const t0 = performance.now();
@@ -168,12 +190,25 @@ export const useStore = create<State>()(
       },
 
       addLog: (log) =>
-        set((s) => ({
-          logs: [
-            { ...log, id: uid(), data_hora: new Date().toISOString() },
-            ...s.logs,
-          ].slice(0, 200),
-        })),
+        set((s) => {
+          const novo: LogOperacional = {
+            ...log,
+            mensagem_usuario: truncateForLog(log.mensagem_usuario) || "Evento operacional sem mensagem.",
+            contexto_resumido: truncateForLog(log.contexto_resumido),
+            id: uid(),
+            data_hora: new Date().toISOString(),
+          };
+          const deduped = s.logs.filter(
+            (item) => !(
+              item.codigo_evento === novo.codigo_evento
+              && item.arquivo_nome === novo.arquivo_nome
+              && item.mensagem_usuario === novo.mensagem_usuario
+            )
+          );
+
+          // PRD 06: logs operacionais são curtos e não podem crescer indefinidamente.
+          return { logs: [novo, ...deduped].slice(0, MAX_LOGS) };
+        }),
       clearLogs: () => set({ logs: [] }),
 
       rerun: () => {
@@ -209,6 +244,25 @@ export const useStore = create<State>()(
           ultimaExecucao: undefined,
         }),
     }),
-    { name: "consultasefaz-store" }
+    {
+      name: "consultasefaz-store",
+      storage: createJSONStorage(() => safeLocalStorage),
+      version: 1,
+      migrate: (persisted) => {
+        const state = (persisted || {}) as Partial<State>;
+        return {
+          empresas: state.empresas || [],
+          excecoes: state.excecoes || [],
+          logs: (state.logs || []).slice(0, MAX_LOGS),
+        };
+      },
+      partialize: (state) => ({
+        // Correção de quota: notas SEFAZ, RFT006/ERP, payloads e dataset são snapshots
+        // pesados da análise e permanecem somente em memória durante a sessão V1.
+        empresas: state.empresas,
+        excecoes: state.excecoes,
+        logs: state.logs.slice(0, MAX_LOGS),
+      }),
+    }
   )
 );
