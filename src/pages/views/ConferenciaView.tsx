@@ -1,16 +1,13 @@
 import * as React from "react";
-import { AlertCircle, AlertTriangle, Building2, Check, ChevronDown, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
+import { AlertCircle, AlertTriangle, Building2, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getNatureza } from "@/lib/conferencia/helpers";
 import { formatFiscalDateBR } from "@/lib/fiscalDate";
-import type { DatasetLinha, Empresa, StatusFinal } from "@/lib/types";
+import type { DatasetLinha, Empresa } from "@/lib/types";
 
 type ConferenciaStats = {
   total: number;
@@ -25,6 +22,8 @@ type ConferenciaViewProps = {
   empresaId: string;
   setEmpresaId: (value: string) => void;
   empresas: Empresa[];
+  destinatarioCounts: Record<string, number>;
+  destinatarioTotalCount: number;
   status: string;
   setStatus: (value: string) => void;
   dataIni: string;
@@ -49,6 +48,8 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     empresaId,
     setEmpresaId,
     empresas,
+    destinatarioCounts,
+    destinatarioTotalCount,
     status,
     setStatus,
     dataIni,
@@ -66,15 +67,18 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     setPage,
     setSelected,
   } = props;
-  // Padronização visual intencional: filtros usam azul sólido oficial mantendo semântica e comportamento.
-  // O estado ativo recebe destaque sutil extra para leitura rápida do filtro selecionado.
-  const quickStatusFilters: Array<{ value: string; label: string; count: number; tone: string; activeTone: string }> = [
-    { value: "all", label: "Todos", count: stats.total, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
-    { value: "FALTANTE", label: "Faltante", count: stats.faltantes, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
-    { value: "OK", label: "OK", count: stats.ok, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
-    { value: "IRREGULAR", label: "Irregular", count: stats.irregulares, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
-    { value: "DESCONSIDERADA", label: "Desconsiderada", count: stats.desconsideradas, tone: "border-primary bg-primary text-primary-foreground hover:bg-primary/90", activeTone: "border-primary bg-primary text-primary-foreground ring-primary/50 shadow-md scale-[1.01]" },
+  const quickStatusFilters: Array<{ value: string; label: string; count: number }> = [
+    { value: "all", label: "Todos", count: stats.total },
+    { value: "FALTANTE", label: "Faltante", count: stats.faltantes },
+    { value: "OK", label: "OK", count: stats.ok },
+    { value: "IRREGULAR", label: "Irregular", count: stats.irregulares },
+    { value: "DESCONSIDERADA", label: "Desconsiderada", count: stats.desconsideradas },
   ];
+  const quickDestinatarioFilters = empresas.map((empresa) => ({
+    value: empresa.id,
+    label: getEmpresaFilterLabel(empresa),
+    count: destinatarioCounts[empresa.id] ?? 0,
+  }));
 
   return (
     <>
@@ -98,12 +102,7 @@ export function ConferenciaView(props: ConferenciaViewProps) {
       </div>
 
       <Card className="p-3 md:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
-          <div>
-            <Label className="text-xs">Destinatário</Label>
-            {/* Combobox pesquisável para escalar a seleção de destinatário sem alterar a regra do filtro atual. */}
-            <DestinatarioCombobox empresaId={empresaId} setEmpresaId={setEmpresaId} empresas={empresas} />
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
           <div>
             <Label className="text-xs">Data inicial</Label>
             <Input type="date" value={dataIni} onChange={(e) => setDataIni(e.target.value)} className="mt-1 h-9" />
@@ -123,27 +122,40 @@ export function ConferenciaView(props: ConferenciaViewProps) {
         </div>
         <div className="mt-3">
           <Label className="text-xs">Status</Label>
-          {/* Botões rápidos filtram por status usando somente o resultado final do motor,
-              sem exibir status interno IGNORADA na UI principal. */}
-          <div className="mt-1 flex gap-2 overflow-x-auto pb-1">
-            {quickStatusFilters.map((filter) => {
-              const isActive = status === filter.value;
-              return (
-                <Button
-                  key={filter.value}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStatus(filter.value)}
-                  className={`h-9 whitespace-nowrap rounded-md transition-all ${filter.tone} ${isActive ? `ring-2 ${filter.activeTone}` : ""}`}
-                >
-                  <span>{filter.label}</span>
-                  <span className="ml-1.5 rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary-foreground">
-                    {filter.count}
-                  </span>
-                </Button>
-              );
-            })}
+          {/* Filtro ativo em azul forte; filtros inativos ficam discretos para não parecerem selecionados. */}
+          <div className="mt-1 flex flex-wrap gap-2">
+            {quickStatusFilters.map((filter) => (
+              <QuickFilterButton
+                key={filter.value}
+                label={filter.label}
+                count={filter.count}
+                active={status === filter.value}
+                onClick={() => setStatus(filter.value)}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="mt-3">
+          <Label className="text-xs">Destinatário</Label>
+          {/* Destinatário passa de dropdown para botões rápidos, preservando empresa_id apenas como estado técnico legado. */}
+          <div className="mt-1 flex flex-wrap gap-2">
+            <QuickFilterButton
+              label="Todos"
+              count={destinatarioTotalCount}
+              active={empresaId === "all"}
+              onClick={() => setEmpresaId("all")}
+            />
+            {quickDestinatarioFilters.map((filter) => (
+              <QuickFilterButton
+                key={filter.value}
+                label={filter.label}
+                count={filter.count}
+                active={empresaId === filter.value}
+                onClick={() => setEmpresaId(filter.value)}
+                title={filter.label}
+                className="max-w-full sm:max-w-[16rem]"
+              />
+            ))}
           </div>
         </div>
       </Card>
@@ -340,65 +352,66 @@ function formatValorTotal(linha: DatasetLinha) {
 }
 
 
-function DestinatarioCombobox({
-  empresaId,
-  setEmpresaId,
-  empresas,
-}: {
-  empresaId: string;
-  setEmpresaId: (value: string) => void;
-  empresas: Empresa[];
-}) {
-  const [open, setOpen] = React.useState(false);
+type QuickFilterButtonProps = {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  title?: string;
+  className?: string;
+};
 
-  const selectedLabel = empresaId === "all" ? "Todas" : empresas.find((e) => e.id === empresaId)?.nome ?? "Todas";
-
-  const toSearchText = (empresa: Empresa) => {
-    const documentoLimpo = (empresa.cnpj ?? "").replace(/\D/g, "");
-    return `${empresa.nome} ${empresa.razao_social ?? ""} ${empresa.cnpj ?? ""} ${documentoLimpo}`.trim();
-  };
-
+function QuickFilterButton({ label, count, active, onClick, title, className }: QuickFilterButtonProps) {
+  const isZeroInactive = count === 0 && !active;
+  // Badge e chip compartilham o mesmo estado: ativo azul forte; inativo com outline/fundo discreto.
+  // Quando o contador chega a zero por filtros combinados, o chip permanece visível, porém mais neutro.
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="mt-1 h-9 w-full justify-between font-normal">
-          <span className="truncate">{selectedLabel}</span>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Buscar destinatário..." />
-          <CommandList>
-            <CommandEmpty>Nenhum destinatário encontrado</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                value="todas all"
-                onSelect={() => {
-                  setEmpresaId("all");
-                  setOpen(false);
-                }}
-              >
-                <Check className={cn("mr-2 h-4 w-4", empresaId === "all" ? "opacity-100" : "opacity-0")} />
-                Todas
-              </CommandItem>
-              {empresas.map((empresa) => (
-                <CommandItem
-                  key={empresa.id}
-                  value={`${empresa.id} ${toSearchText(empresa)}`}
-                  onSelect={() => {
-                    setEmpresaId(empresa.id);
-                    setOpen(false);
-                  }}
-                >
-                  <Check className={cn("mr-2 h-4 w-4", empresaId === empresa.id ? "opacity-100" : "opacity-0")} />
-                  <span className="truncate">{empresa.nome}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      title={title}
+      className={`h-9 min-w-0 rounded-md transition-colors ${
+        active
+          ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+          : isZeroInactive
+            ? "border-border bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-muted-foreground"
+            : "border-primary/25 bg-background text-primary hover:bg-primary/5 hover:text-primary"
+      } ${className ?? ""}`}
+    >
+      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      <span
+        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
+          active
+            ? "bg-primary-foreground/20 text-primary-foreground"
+            : isZeroInactive
+              ? "bg-background/80 text-muted-foreground"
+              : "bg-primary/10 text-primary"
+        }`}
+      >
+        {count}
+      </span>
+    </Button>
   );
+}
+
+function getEmpresaFilterLabel(empresa: Empresa) {
+  const nomeAmigavel = normalizeDestinatarioLabel(empresa.destinatario_apelido);
+  if (nomeAmigavel) return nomeAmigavel;
+
+  const nome = normalizeDestinatarioLabel(empresa.nome);
+  if (nome && !isGeneratedEmpresaLabel(empresa.nome)) return nome;
+
+  return normalizeDestinatarioLabel(empresa.razao_social) ?? nome ?? "Destinatário";
+}
+
+function normalizeDestinatarioLabel(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/^Empresa\s+(.+)$/i, "Destinatário $1");
+}
+
+function isGeneratedEmpresaLabel(value?: string) {
+  return /^Empresa\s+/i.test(value?.trim() ?? "");
 }
