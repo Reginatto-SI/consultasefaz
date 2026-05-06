@@ -88,6 +88,31 @@ Regras:
 | Chave existe e todas as linhas encontradas estão sem IE do emitente | `IE_EMITENTE_AUSENTE_RFT006` |
 | Chave existe e há IE preenchida divergente, inclusive cenário misto com linhas sem IE | `IE_EMITENTE_DIVERGENTE` |
 
+
+### 6.5 Normalização e equivalência de IE de emitente isento
+
+Para matching por IE do emitente, o motor deve diferenciar três estados internos:
+
+- IE numérica: remover máscara, espaços e caracteres não numéricos, preservando a comparação numérica já existente.
+- IE isenta: textos operacionais como `ISENTO`, `ISENTA`, `ISENÇÃO`, `ISENCAO`, `SEM IE`, `SEM INSCRICAO`, `SEM INSCRIÇÃO ESTADUAL`, `NAO CONTRIBUINTE` ou `NÃO CONTRIBUINTE` podem ser normalizados para um marcador interno único, por exemplo `__ISENTO__`.
+- IE ausente: valor nulo, vazio, `undefined`, `null`, `—`, `-` ou apenas espaços representa ausência real.
+
+A equivalência fiscal isento/ausente é permitida somente quando houver evidência textual de isenção em um dos lados da comparação:
+
+| SEFAZ normalizada | RFT006 normalizada | Resultado da IE |
+|---|---|---|
+| `__ISENTO__` | ausente | compatível |
+| ausente | `__ISENTO__` | compatível |
+| `__ISENTO__` | `__ISENTO__` | compatível |
+
+Restrições obrigatórias:
+
+- SEFAZ com IE numérica contra RFT006 vazio continua gerando `IE_EMITENTE_AUSENTE_RFT006`.
+- SEFAZ com IE numérica contra RFT006 `ISENTO` continua gerando `IE_EMITENTE_DIVERGENTE`.
+- IE numérica divergente continua gerando `IE_EMITENTE_DIVERGENTE`.
+- Ausência pura em ambos os lados não confirma matching por IE.
+- Esta regra não cria novo status público nem transforma `Verificar IE` em status final.
+
 ## 7. Matriz oficial de classificação final (V1)
 
 | Condição | status final operacional |
@@ -119,7 +144,8 @@ Regras obrigatórias:
 ## 9. Regra operacional `Verificar IE`
 - `Verificar IE` é indicação visual/comunicacional para problemas de IE.
 - `Verificar IE` não é `status_final`.
-- Deve ser usado pela UI quando `resultado_matching`/`motivo_divergencia` indicar ausência ou divergência de IE conforme este PRD.
+- Deve ser usado pela UI quando `resultado_matching`/`motivo_divergencia` indicar ausência ou divergência real de IE conforme este PRD.
+- Não deve ser exibido quando a equivalência isento/ausente confirmar matching e `motivo_divergencia = null`.
 - A apresentação visual pertence ao PRD 03.
 
 ## 10. Determinismo

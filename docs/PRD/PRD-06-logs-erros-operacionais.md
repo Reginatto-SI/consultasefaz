@@ -60,3 +60,8 @@ Pós-importação:
 - Linhas RFT006 com chave preenchida e IE ausente devem continuar gerando aviso operacional no fluxo de importação.
 - Esses logs não substituem a conferência por nota.
 - O impacto de escrituração deve ser calculado pelo PRD 05 e exposto pelo contrato do PRD 07; logs apenas orientam correção operacional e não reclassificam notas.
+
+
+## Nota sobre IE isenta no RFT006
+
+Logs de IE ausente no RFT006 devem continuar existindo para inconsistências reais de escrituração. Porém, quando o motor confirmar a nota por equivalência fiscal de isenção conforme PRD 05, a ausência de IE no lado oposto não deve ser apresentada como divergência operacional dessa nota. Quando houver aviso, a redação deve ser informativa, indicando que a chave foi encontrada e o emitente foi tratado como isento de IE, sem impacto na conferência.
