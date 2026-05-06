@@ -9,7 +9,7 @@ import type {
   RegistroErp,
 } from "@/lib/types";
 import { rodarMotor, normalizeChave, normalizeCnpj } from "@/lib/engine";
-import { findDestinatarioConhecidoByDocumento } from "@/config/destinatariosConhecidos";
+import { aplicarDestinatarioConhecidoNaEmpresa, findDestinatarioConhecidoByDocumento } from "@/config/destinatariosConhecidos";
 
 const uid = () => Math.random().toString(36).slice(2, 11);
 
@@ -83,15 +83,7 @@ export const useStore = create<State>()(
         const existing = get().empresas.find((e) => e.cnpj === cnpjN);
         if (existing) {
           if (!known) return existing;
-          const atualizado: Empresa = {
-            ...existing,
-            nome: known.apelido,
-            inscricao_estadual: known.ie,
-            razao_social: known.razao_social,
-            perfil: known.perfil,
-            tributacao: known.tributacao,
-            destinatario_apelido: known.apelido,
-          };
+          const atualizado = aplicarDestinatarioConhecidoNaEmpresa(existing);
           set((s) => ({ empresas: s.empresas.map((e) => (e.id === existing.id ? atualizado : e)) }));
           return atualizado;
         }
@@ -247,11 +239,11 @@ export const useStore = create<State>()(
     {
       name: "consultasefaz-store",
       storage: createJSONStorage(() => safeLocalStorage),
-      version: 1,
+      version: 2,
       migrate: (persisted) => {
         const state = (persisted || {}) as Partial<State>;
         return {
-          empresas: state.empresas || [],
+          empresas: (state.empresas || []).map(aplicarDestinatarioConhecidoNaEmpresa),
           excecoes: state.excecoes || [],
           logs: (state.logs || []).slice(0, MAX_LOGS),
         };

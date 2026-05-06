@@ -1,23 +1,27 @@
 import { Card } from "@/components/ui/card";
 import { useStore } from "@/store/useStore";
-import { DESTINATARIOS_CONHECIDOS } from "@/config/destinatariosConhecidos";
+import { aplicarDestinatarioConhecidoNaEmpresa, DESTINATARIOS_CONHECIDOS } from "@/config/destinatariosConhecidos";
 import { normalizeCnpj } from "@/lib/engine";
 
 export function DestinatariosView() {
   const { empresas } = useStore();
 
   const empresasMap = new Map(
-    empresas.map((empresa) => [
-      normalizeCnpj(empresa.cnpj),
-      {
-        apelido: empresa.destinatario_apelido || empresa.nome,
-        cpf_cnpj: empresa.cnpj,
-        ie: empresa.inscricao_estadual,
-        perfil: empresa.perfil,
-        tributacao: empresa.tributacao,
-        razao_social: empresa.razao_social || empresa.nome,
-      },
-    ])
+    empresas.map((empresaOriginal) => {
+      // Reaplica o cadastro conhecido na renderização para corrigir sessões antigas já persistidas.
+      const empresa = aplicarDestinatarioConhecidoNaEmpresa(empresaOriginal);
+      return [
+        normalizeCnpj(empresa.cnpj),
+        {
+          apelido: empresa.destinatario_apelido || empresa.nome,
+          cpf_cnpj: empresa.cnpj,
+          ie: empresa.inscricao_estadual,
+          perfil: empresa.perfil,
+          tributacao: empresa.tributacao,
+          razao_social: empresa.razao_social || empresa.nome,
+        },
+      ] as const;
+    })
   );
 
   for (const conhecido of DESTINATARIOS_CONHECIDOS) {
