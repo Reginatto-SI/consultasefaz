@@ -6,9 +6,9 @@
 - **Evidência técnica:** a função `getNatureza` buscava apenas chaves normalizadas (`natureza`, `natureza_operacao`, `operacao`) dentro de `payload_completo_drawer`, sem considerar a chave original do relatório (`NATUREZA DE OPERAÇÃO`) e sem usar campo estruturado do resumo.
 
 ## 2) Arquivos analisados
-- `Docs/PRD/PRD 07 — ConsultaSefaz — Contrato de Dados e Pipeline Estrutural.txt`
-- `Docs/PRD/PRD 08 — ConsultaSefaz — Layout do Relatório SEFAZ.txt`
-- `Docs/PRD/PRD 03 — ConsultaSefaz — Interface e Experiência do Usuário (UXUI).txt`
+- `docs/PRD/PRD-07-contrato-dados-pipeline.md`
+- `docs/PRD/PRD-08-layout-relatorio-sefaz.md`
+- `docs/PRD/PRD-03-interface-experiencia-usuario.md`
 - `src/lib/importer.ts`
 - `src/lib/engine.ts`
 - `src/pages/views/ConferenciaView.tsx`

@@ -1,5 +1,62 @@
-# PRD 06 — Logs de Erros Operacionais
+# PRD 06 — ConsultaSefaz — Logs de Erros Operacionais
+
+## 1. Objetivo
+Registrar e exibir erros/avisos operacionais para facilitar correção durante importação e conferência.
+
+## 2. Fonte de verdade deste PRD
+Este documento é a fonte de verdade para categorias, formato e exibição de logs operacionais.
+
+## 3. Tipos
+- importacao
+- processamento
+
+Níveis:
+- erro
+- aviso
+
+## 4. Campos mínimos do log
+- tipo
+- nivel
+- arquivo_nome (quando aplicável)
+- codigo_evento (padronizado)
+- mensagem_usuario
+- contexto_resumido
+- data_hora
+
+## 5. Regras obrigatórias
+- Mensagens claras e acionáveis.
+- Não registrar sucesso como log.
+- Evitar duplicidade no mesmo arquivo/lote.
+- Persistência curta (janela operacional).
+
+## 6. Exibição mínima
+Pós-importação:
+- total sucesso
+- total avisos
+- total erros
+- botão “Ver detalhes” por arquivo/evento
+
+## 7. Integração
+- PRD 02: origem principal dos logs de importação.
+- PRD 05: logs de processamento.
+- PRD 03: ponto de visualização ao usuário.
+- PRD 07: contexto de pipeline para padronizar eventos.
+
+## 8. Limites V1
+- Sem stack trace técnico na UI operacional.
+- Sem observabilidade avançada.
+- Sem retenção longa.
+
+
+## 9. Escopo de logs na V1
+- Logs são locais e temporários.
+- Sem persistência em servidor.
+- Sem stack trace técnico na UI operacional.
+- Logs podem ser limpos junto com o estado local.
+- Logs servem para orientar o operador na sessão e no uso recente.
+
+## 10. Logs de RFT006 com IE ausente — refinamento vigente
 
 - Linhas RFT006 com chave preenchida e IE ausente devem continuar gerando aviso operacional no fluxo de importação.
 - Esses logs não substituem a conferência por nota.
-- O impacto de escrituração deve aparecer na tela de conferência por meio de `status_final` e `motivo_divergencia`.
+- O impacto de escrituração deve ser calculado pelo PRD 05 e exposto pelo contrato do PRD 07; logs apenas orientam correção operacional e não reclassificam notas.

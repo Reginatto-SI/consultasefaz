@@ -115,13 +115,14 @@ Devem permitir continuidade com registro no PRD 06:
 - Inconsistências pontuais de preenchimento em linhas isoladas, quando não inviabilizarem os campos mínimos estruturais.
 
 
-## 15. Regra oficial de matching com RFT006/ERP
-- O destinatário fiscal continua definido pelo bloco `DADOS DESTINATÁRIO` (coluna `O` no layout base).
-- O `destinatario_cnpj_cpf` continua sendo o vínculo de pertencimento da nota ao destinatário fiscal.
-- Para matching com ERP/RFT006 na V1, a IE usada deve ser a IE do emitente: `emitente_inscricao_estadual` (coluna `L`).
-- `emitente_inscricao_estadual` define a IE usada na confirmação de escrituração com o RFT006.
-- `destinatario_inscricao_estadual` é informativa na V1 e não deve ser usada como chave principal de matching com RFT006.
-- O motor não deve usar IE do destinatário para matching com o RFT006.
+## 15. Campos SEFAZ consumidos pelo matching
+
+Este PRD define apenas a origem no layout SEFAZ dos campos que o motor poderá consumir. A regra de matching pertence exclusivamente ao PRD 05.
+
+- `destinatario_cnpj_cpf` vem do bloco `DADOS DESTINATÁRIO` e define pertencimento fiscal da nota conforme PRD 00.
+- `emitente_inscricao_estadual` vem do bloco `DADOS EMISSOR` e é campo estrutural disponibilizado ao motor conforme PRD 07.
+- `destinatario_inscricao_estadual` é campo informativo na V1.
+- O motor não deve reinterpretar layout bruto SEFAZ; deve consumir campos estruturados pela importação.
 
 ## 16. Integração com PRD 02, PRD 05, PRD 06 e PRD 07
 - PRD 02 deve usar este PRD 08 como contrato oficial de parsing de layout SEFAZ.
@@ -137,11 +138,11 @@ Devem permitir continuidade com registro no PRD 06:
 - Evoluções de layout devem ocorrer por revisão controlada deste PRD 08 e alinhamento dos PRDs dependentes.
 
 
-## 18. Normalização do texto de status SEFAZ (apoio ao motor)
-- O valor textual de `status_sefaz` deve ser normalizado na importação para consumo determinístico do motor (PRD 05).
-- `status_sefaz_valido` representa nota autorizada/regular no relatório SEFAZ.
-- `status_sefaz_invalido` representa nota cancelada, denegada, inutilizada, inexistente ou equivalente no relatório SEFAZ.
-- Se surgir status textual desconhecido, registrar aviso operacional e tratar como inválido por segurança, salvo regra futura explícita em contrário.
+## 18. Origem e normalização do texto de status SEFAZ
+- Este PRD define a origem do campo `status_sefaz` no layout SEFAZ.
+- A importação deve entregar valor estruturado/normalizado para consumo do pipeline.
+- A interpretação de validade e efeito na classificação pertence ao PRD 05.
+- Status textual desconhecido deve gerar aviso operacional conforme PRD 06.
 
 
 ## 19. Execução de parsing na V1

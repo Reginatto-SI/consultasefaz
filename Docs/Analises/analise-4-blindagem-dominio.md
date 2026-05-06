@@ -21,11 +21,11 @@
 - Regra de ouro: sistema multidestinatário orientado por SEFAZ.
 
 ## 4. Arquivos modificados
-- `Docs/PRD/PRD 00 — ConsultaSefaz — Dicionário de Domínio.txt`
-- `Docs/PRD/PRD 01 — ConsultaSefaz — Conferência Inteligente de Notas Fiscais.txt`
-- `Docs/PRD/PRD 03 — ConsultaSefaz — Interface e Experiência do Usuário (UXUI).txt`
-- `Docs/PRD/PRD 04 — ConsultaSefaz — Exceções e Regras Operacionais.txt`
-- `Docs/PRD/PRD 07 — ConsultaSefaz — Contrato de Dados e Pipeline Estrutural.txt`
+- `docs/PRD/PRD-00-dicionario-dominio.md`
+- `docs/PRD/PRD-01-visao-geral-regras-negocio.md`
+- `docs/PRD/PRD-03-interface-experiencia-usuario.md`
+- `docs/PRD/PRD-04-excecoes-regras-operacionais.md`
+- `docs/PRD/PRD-07-contrato-dados-pipeline.md`
 - `README.md`
 - `src/pages/Index.tsx`
 - `Docs/Analises/analise-4-blindagem-dominio.md`

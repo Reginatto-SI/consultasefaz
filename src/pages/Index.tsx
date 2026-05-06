@@ -91,6 +91,24 @@ const Index = () => {
     return filteredWithoutStatus.filter((l) => l.status_final === status);
   }, [filteredWithoutStatus, status]);
 
+  // Base sem filtro de destinatário para contabilizar chips de Destinatário junto com status, período e chave.
+  const filteredWithoutDestinatario = useMemo(() => {
+    return dataset.filter((l) => {
+      if (status !== "all" && l.status_final !== status) return false;
+      if (chave && !l.chave_nfe.includes(chave.replace(/\D/g, ""))) return false;
+      if (dataIni && new Date(l.data_emissao) < new Date(dataIni)) return false;
+      if (dataFim && new Date(l.data_emissao) > new Date(dataFim + "T23:59:59")) return false;
+      return true;
+    });
+  }, [dataset, status, chave, dataIni, dataFim]);
+
+  const destinatarioCounts = useMemo(() => {
+    return filteredWithoutDestinatario.reduce<Record<string, number>>((acc, linha) => {
+      acc[linha.empresa_id] = (acc[linha.empresa_id] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [filteredWithoutDestinatario]);
+
   const stats = useMemo(() => {
     const c = (s: StatusFinal) => filteredWithoutStatus.filter((l) => l.status_final === s).length;
     return {
@@ -276,6 +294,8 @@ const Index = () => {
                 empresaId={empresaId}
                 setEmpresaId={setEmpresaId}
                 empresas={empresas}
+                destinatarioCounts={destinatarioCounts}
+                destinatarioTotalCount={filteredWithoutDestinatario.length}
                 status={status}
                 setStatus={setStatus}
                 dataIni={dataIni}
