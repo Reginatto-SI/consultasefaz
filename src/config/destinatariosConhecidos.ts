@@ -1,4 +1,5 @@
 import { normalizeCnpj, normalizeIE } from "@/lib/engine";
+import type { Empresa } from "@/lib/types";
 
 export type DestinatarioConhecido = {
   apelido: string;
@@ -37,4 +38,21 @@ export function findDestinatarioConhecidoByDocumento(cpfCnpj: string): Destinata
   const docNormalizado = normalizeCnpj(cpfCnpj);
   if (!docNormalizado) return undefined;
   return DESTINATARIOS_CONHECIDOS.find((item) => item.cpf_cnpj_normalizado === docNormalizado);
+}
+
+export function aplicarDestinatarioConhecidoNaEmpresa(empresa: Empresa): Empresa {
+  const known = findDestinatarioConhecidoByDocumento(empresa.cnpj);
+  if (!known) return empresa;
+
+  // Garante que empresas já persistidas com fallback (ex.: "Empresa 44187258")
+  // também passem a exibir o apelido conhecido sem exigir limpeza manual do navegador.
+  return {
+    ...empresa,
+    nome: known.apelido,
+    inscricao_estadual: known.ie,
+    razao_social: known.razao_social,
+    perfil: known.perfil,
+    tributacao: known.tributacao,
+    destinatario_apelido: known.apelido,
+  };
 }
