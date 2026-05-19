@@ -165,8 +165,9 @@ const Index = () => {
         <aside className={`hidden lg:flex flex-col border-r border-border bg-card sticky top-0 h-screen ${sidebarCollapsed ? "items-center px-3 py-4" : "p-4"}`}>
           <div className={`mb-7 w-full ${sidebarCollapsed ? "flex flex-col items-center gap-2" : "flex items-center justify-between gap-3 px-2"}`}>
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-primary/90 text-primary-foreground flex items-center justify-center">
-                <ShieldCheck className="h-5 w-5" />
+              {/* Logo textual da empresa no lugar do ícone para manter identidade visual solicitada. */}
+              <div className="h-9 w-9 rounded-lg bg-primary/90 text-primary-foreground flex items-center justify-center font-bold text-sm tracking-wide">
+                JM
               </div>
               {!sidebarCollapsed && (
                 <div>
