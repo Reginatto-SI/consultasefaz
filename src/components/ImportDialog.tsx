@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Card } from "@/components/ui/card";
 import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, XCircle, Loader2 } from "lucide-react";
 import { parseFile, type ParseResult, type TipoImportacao } from "@/lib/importer";
 import { useStore } from "@/store/useStore";
@@ -17,7 +19,6 @@ type StageMsg =
   | "Validando layout..."
   | "Processando linhas..."
   | "Atualizando conferência..."
-  | "Finalizado com sucesso"
   | string;
 
 function maskChave(chave: string): string {
@@ -42,6 +43,11 @@ function isLoadingStage(stage: StageMsg): boolean {
     || stage === "Validando layout..."
     || stage === "Processando linhas..."
     || stage === "Atualizando conferência...";
+}
+
+function isSuccessStage(stage: StageMsg): boolean {
+  return stage === "Relatório SEFAZ importado com sucesso"
+    || stage === "Conferência concluída";
 }
 
 // Pequeno yield para o React conseguir pintar a próxima etapa antes do trabalho pesado.
@@ -198,7 +204,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       setSefazResults(summary.results);
 
       if (summary.sucessos > 0) {
-        setStage("Finalizado com sucesso");
+        setStage("Relatório SEFAZ importado com sucesso");
         if (summary.erros > 0) {
           toast.warning(`Lote SEFAZ processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
         } else {
@@ -238,7 +244,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       setErpResults(summary.results);
 
       if (summary.sucessos > 0) {
-        setStage("Finalizado com sucesso");
+        setStage("Conferência concluída");
         if (summary.erros > 0) {
           toast.warning(`Lote RFT006 processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
         } else {
@@ -284,9 +290,9 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const renderStageBanner = () => {
     if (stage === "idle") return null;
-    const isError = stage !== "Finalizado com sucesso" && !isLoadingStage(stage);
-    const isDone = stage === "Finalizado com sucesso";
+    const isDone = isSuccessStage(stage);
     const isLoading = isLoadingStage(stage);
+    const isError = !isLoading && !isDone;
     return (
       <div
         className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
@@ -341,20 +347,38 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Importar Arquivos</DialogTitle>
-          <DialogDescription>Suporte para .xlsx e .xls. Múltiplos arquivos por lote. A análise importada fica apenas na sessão atual do navegador.</DialogDescription>
+          <DialogTitle>Importar relatórios para conferência</DialogTitle>
+          <DialogDescription asChild>
+            <div className="space-y-2">
+              <div className="grid gap-2 text-sm">
+                <div className="rounded-md border bg-muted/30 px-3 py-2">1. SEFAZ — relatório baixado da SEFAZ com as notas fiscais de entrada.</div>
+                <div className="rounded-md border bg-muted/30 px-3 py-2">2. RFT006 / ERP — relatório exportado do ERP/Maxicon para confirmar o que já foi lançado.</div>
+              </div>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <p>Depois da importação, o sistema compara os relatórios e mostra notas OK, faltantes e irregulares.</p>
+                <p>Formatos aceitos: .xlsx e .xls.</p>
+              </div>
+            </div>
+          </DialogDescription>
         </DialogHeader>
 
         {currentStep === 1 && (
           <div className="space-y-4 mt-2">
             <div>
-              <p className="text-sm font-semibold">Etapa 1 de 3 — Importar lote SEFAZ</p>
-              <p className="text-xs text-muted-foreground mt-1">Selecione um ou mais relatórios de notas destinadas extraídos da SEFAZ.</p>
-              <p className="text-xs text-muted-foreground mt-1">A = Data emissão, D = Chave NF-e, I = Situação, L = IE do emitente, O = CNPJ/CPF do destinatário</p>
+              <p className="text-sm font-semibold">1 de 2 — Envie o relatório da SEFAZ</p>
+              <p className="text-xs text-muted-foreground mt-1">Selecione o Excel baixado da SEFAZ. Ele deve conter a chave da NF-e, situação da nota, emitente e destinatário.</p>
+              <Accordion type="single" collapsible className="mt-2">
+                <AccordionItem value="sefaz-help" className="border-b-0">
+                  <AccordionTrigger className="py-2 text-xs text-muted-foreground">Como identificar este relatório?</AccordionTrigger>
+                  <AccordionContent className="text-xs text-muted-foreground">
+                    O relatório SEFAZ normalmente possui: Data de emissão, Chave de acesso, Situação, Dados do Emitente e Dados do Destinatário.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
 
             <div>
-              <Label htmlFor="sefaz-files">Arquivos SEFAZ</Label>
+              <Label htmlFor="sefaz-files">Relatório SEFAZ</Label>
               <Input
                 id="sefaz-files"
                 type="file"
@@ -373,7 +397,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             {sefazFiles.length > 0 && (
               <div className="space-y-1.5 max-h-40 overflow-auto">
                 {sefazFiles.map((file, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-2">
+                  <Card key={index} className="flex items-center gap-2 text-sm bg-muted/50 px-3 py-2 shadow-none">
                     <FileSpreadsheet className="h-4 w-4 text-primary" />
                     <span className="flex-1 truncate">{file.name}</span>
                     <button
@@ -383,7 +407,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                     >
                       <X className="h-4 w-4" />
                     </button>
-                  </div>
+                  </Card>
                 ))}
               </div>
             )}
@@ -397,7 +421,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </Button>
               <Button onClick={handleProcessSefaz} disabled={!sefazFiles.length || processing}>
                 <Upload className="h-4 w-4 mr-2" />
-                {processing ? "Processando..." : "Processar lote SEFAZ e continuar"}
+                {processing ? "Processando..." : "Continuar para o relatório ERP"}
               </Button>
             </div>
           </div>
@@ -406,13 +430,23 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         {currentStep === 2 && (
           <div className="space-y-4 mt-2">
             <div>
-              <p className="text-sm font-semibold">Etapa 2 de 3 — Importar lote RFT006 / ERP</p>
-              <p className="text-xs text-muted-foreground mt-1">Selecione um ou mais relatórios RFT006 - Relatório de Notas Fiscais exportados do Maxicon/ERP.</p>
-              <p className="text-xs text-muted-foreground mt-1">Z = IE do emitente, AC = Chave de acesso</p>
+              <p className="text-sm font-semibold">2 de 2 — Envie o relatório RFT006 do ERP</p>
+              <p className="text-xs text-muted-foreground mt-1">Selecione o Excel exportado do ERP/Maxicon. Ele será usado para verificar quais notas da SEFAZ já foram escrituradas.</p>
+              {sefazSuccesses > 0 && (
+                <p className="text-xs text-success mt-2">Relatório SEFAZ importado com sucesso. Agora envie o relatório RFT006 / ERP.</p>
+              )}
+              <Accordion type="single" collapsible className="mt-2">
+                <AccordionItem value="erp-help" className="border-b-0">
+                  <AccordionTrigger className="py-2 text-xs text-muted-foreground">Como identificar este relatório?</AccordionTrigger>
+                  <AccordionContent className="text-xs text-muted-foreground">
+                    O RFT006 normalmente possui colunas como IE, Chave de acesso, Nota, Emissão, CNPJ e Razão Social.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
 
             <div>
-              <Label htmlFor="erp-files">Arquivos RFT006 / ERP</Label>
+              <Label htmlFor="erp-files">Relatório RFT006 / ERP</Label>
               <Input
                 id="erp-files"
                 type="file"
@@ -431,7 +465,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             {erpFiles.length > 0 && (
               <div className="space-y-1.5 max-h-40 overflow-auto">
                 {erpFiles.map((file, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-2">
+                  <Card key={index} className="flex items-center gap-2 text-sm bg-muted/50 px-3 py-2 shadow-none">
                     <FileSpreadsheet className="h-4 w-4 text-primary" />
                     <span className="flex-1 truncate">{file.name}</span>
                     <button
@@ -441,7 +475,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                     >
                       <X className="h-4 w-4" />
                     </button>
-                  </div>
+                  </Card>
                 ))}
               </div>
             )}
@@ -455,7 +489,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </Button>
               <Button onClick={handleProcessErp} disabled={!erpFiles.length || processing}>
                 <Upload className="h-4 w-4 mr-2" />
-                {processing ? "Processando..." : "Processar lote RFT006 e continuar"}
+                {processing ? "Processando..." : "Concluir importação e conferir notas"}
               </Button>
             </div>
           </div>
@@ -464,17 +498,15 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         {currentStep === 3 && (
           <div className="space-y-4 mt-2">
             <div>
-              <p className="text-sm font-semibold">Etapa 3 de 3 — Conferência consolidada</p>
-              <p className="text-xs text-muted-foreground mt-1">A conferência foi recalculada com os dados importados.</p>
+              <p className="text-sm font-semibold">Conferência concluída</p>
+              <p className="text-xs text-muted-foreground mt-1">Os relatórios foram importados e a conferência foi atualizada.</p>
             </div>
 
             <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-sm">
-              <p>Arquivos SEFAZ selecionados: {sefazFiles.length}</p>
-              <p>Arquivos SEFAZ processados com sucesso: {sefazSuccesses}</p>
-              <p>Arquivos RFT006 selecionados: {erpFiles.length}</p>
-              <p>Arquivos RFT006 processados com sucesso: {erpSuccesses}</p>
-              <p>Total de avisos: {totalWarnings}</p>
-              <p>Total de erros: {totalErrors}</p>
+              <p>SEFAZ: {sefazSuccesses} arquivo(s) importado(s)</p>
+              <p>RFT006/ERP: {erpSuccesses} arquivo(s) importado(s)</p>
+              <p>Avisos: {totalWarnings}</p>
+              <p>Erros: {totalErrors}</p>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
