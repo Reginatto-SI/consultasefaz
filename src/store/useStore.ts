@@ -10,11 +10,53 @@ import type {
 } from "@/lib/types";
 import { rodarMotor, normalizeChave, normalizeCnpj } from "@/lib/engine";
 import { findDestinatarioConhecidoByDocumento } from "@/config/destinatariosConhecidos";
+import { clearAnalysisSnapshot, loadAnalysisSnapshot, saveAnalysisSnapshot } from "@/lib/analysisStorage";
 
 const uid = () => Math.random().toString(36).slice(2, 11);
 
 const MAX_LOGS = 80;
 const MAX_LOG_TEXT = 500;
+let localPersistenceWarningShown = false;
+
+function hasAnalysisPayload(state: Pick<State, "notas" | "erp" | "dataset">) {
+  return state.notas.length > 0 || state.erp.length > 0 || state.dataset.length > 0;
+}
+
+function persistAnalysisSnapshot(state: Pick<State, "empresas" | "notas" | "erp" | "logs" | "dataset">) {
+  // Snapshot operacional separado das exceções permanentes: Limpar análise apaga só estes dados.
+  if (!hasAnalysisPayload(state)) {
+    clearAnalysisSnapshot();
+    return true;
+  }
+
+  const saved = saveAnalysisSnapshot({
+    empresas: state.empresas,
+    notas: state.notas,
+    erp: state.erp,
+    logs: state.logs.slice(0, MAX_LOGS),
+  });
+
+  if (saved) localPersistenceWarningShown = false;
+  return saved;
+}
+
+function appendLocalPersistenceWarning(set: Parameters<Parameters<typeof create<State>>[0]>[0]) {
+  if (localPersistenceWarningShown) return;
+  localPersistenceWarningShown = true;
+
+  set((s) => {
+    const novo: LogOperacional = {
+      id: uid(),
+      data_hora: new Date().toISOString(),
+      tipo: "processamento",
+      nivel: "aviso",
+      codigo_evento: "ANALISE_LOCAL_NAO_SALVA",
+      mensagem_usuario: "Não foi possível salvar a análise neste navegador. Se a página for atualizada, talvez seja necessário importar os arquivos novamente.",
+    };
+    const deduped = s.logs.filter((item) => item.codigo_evento !== novo.codigo_evento);
+    return { logs: [novo, ...deduped].slice(0, MAX_LOGS) };
+  });
+}
 
 function truncateForLog(value: string | undefined): string | undefined {
   if (!value) return value;
@@ -43,6 +85,7 @@ interface State {
   logs: LogOperacional[];
   dataset: DatasetLinha[];
   ultimaExecucao?: string;
+  analysisSnapshotRestored: boolean;
 
   addEmpresa: (e: Omit<Empresa, "id">) => Empresa;
   upsertEmpresaByCnpj: (cnpj: string, nome?: string, ie?: string) => Empresa;
@@ -71,6 +114,7 @@ export const useStore = create<State>()(
       excecoes: [],
       logs: [],
       dataset: [],
+      analysisSnapshotRestored: false,
 
       addEmpresa: (e) => {
         const novo: Empresa = { ...e, id: uid(), cnpj: (e.cnpj || "").replace(/\D/g, "") };
@@ -118,6 +162,7 @@ export const useStore = create<State>()(
         const novas: NotaSefaz[] = rows.map((r) => ({ ...r, id: uid(), importacao_id }));
         const empresasImpactadas = new Set(novas.map((n) => n.empresa_id));
         set((s) => ({
+          analysisSnapshotRestored: false,
           notas: [
             ...s.notas.filter((n) => !empresasImpactadas.has(n.empresa_id)),
             ...novas,
@@ -135,7 +180,7 @@ export const useStore = create<State>()(
 
       ingestErp: (rows, importacao_id, arquivo) => {
         const novos: RegistroErp[] = rows.map((r) => ({ ...r, id: uid(), importacao_id }));
-        set({ erp: novos });
+        set({ erp: novos, analysisSnapshotRestored: false });
         const chaveSet = new Set(
           novos
             .map((r) => normalizeChave(r.chave_acesso || r.chave_nfe || ""))
@@ -189,7 +234,7 @@ export const useStore = create<State>()(
         get().rerun();
       },
 
-      addLog: (log) =>
+      addLog: (log) => {
         set((s) => {
           const novo: LogOperacional = {
             ...log,
@@ -208,8 +253,13 @@ export const useStore = create<State>()(
 
           // PRD 06: logs operacionais são curtos e não podem crescer indefinidamente.
           return { logs: [novo, ...deduped].slice(0, MAX_LOGS) };
-        }),
-      clearLogs: () => set({ logs: [] }),
+        });
+        if (!persistAnalysisSnapshot(get())) appendLocalPersistenceWarning(set);
+      },
+      clearLogs: () => {
+        set({ logs: [] });
+        if (!persistAnalysisSnapshot(get())) appendLocalPersistenceWarning(set);
+      },
 
       rerun: () => {
         const { notas, erp, excecoes, empresas } = get();
@@ -222,9 +272,10 @@ export const useStore = create<State>()(
           referencia_execucao: ref,
         });
         set({ dataset, ultimaExecucao: ref });
+        if (!persistAnalysisSnapshot(get())) appendLocalPersistenceWarning(set);
       },
       // Limpa somente o snapshot/análise atual; exceções locais são preservadas por regra de negócio.
-      clearAnalysisData: () =>
+      clearAnalysisData: () => {
         set({
           empresas: [],
           notas: [],
@@ -232,8 +283,12 @@ export const useStore = create<State>()(
           logs: [],
           dataset: [],
           ultimaExecucao: undefined,
-        }),
-      resetAll: () =>
+          analysisSnapshotRestored: false,
+        });
+        localPersistenceWarningShown = false;
+        clearAnalysisSnapshot();
+      },
+      resetAll: () => {
         set({
           empresas: [],
           notas: [],
@@ -242,26 +297,72 @@ export const useStore = create<State>()(
           logs: [],
           dataset: [],
           ultimaExecucao: undefined,
-        }),
+          analysisSnapshotRestored: false,
+        });
+        localPersistenceWarningShown = false;
+        clearAnalysisSnapshot();
+      },
     }),
     {
       name: "consultasefaz-store",
       storage: createJSONStorage(() => safeLocalStorage),
-      version: 1,
+      version: 2,
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const { snapshot, invalid } = loadAnalysisSnapshot();
+
+        if (invalid) {
+          state.addLog({
+            tipo: "processamento",
+            nivel: "aviso",
+            codigo_evento: "ANALISE_LOCAL_INVALIDA",
+            mensagem_usuario: "A análise local salva neste navegador era incompatível e foi descartada com segurança.",
+          });
+          return;
+        }
+
+        if (!snapshot) return;
+
+        const ref = new Date().toISOString();
+        const restoredLogs = snapshot.logs.slice(0, MAX_LOGS);
+        const restoreLog: LogOperacional = {
+          id: uid(),
+          data_hora: ref,
+          tipo: "processamento",
+          nivel: "aviso",
+          codigo_evento: "ANALISE_LOCAL_RESTAURADA",
+          mensagem_usuario: "Última análise carregada deste navegador.",
+        };
+        const dataset = rodarMotor({
+          notas: snapshot.notas,
+          erp: snapshot.erp,
+          excecoes: state.excecoes,
+          empresas: snapshot.empresas,
+          referencia_execucao: ref,
+        });
+
+        useStore.setState({
+          empresas: snapshot.empresas,
+          notas: snapshot.notas,
+          erp: snapshot.erp,
+          logs: [restoreLog, ...restoredLogs].slice(0, MAX_LOGS),
+          dataset,
+          ultimaExecucao: ref,
+          analysisSnapshotRestored: true,
+        });
+      },
       migrate: (persisted) => {
         const state = (persisted || {}) as Partial<State>;
         return {
-          empresas: state.empresas || [],
+          // Versão 2: somente dados permanentes ficam no persist do Zustand.
+          // A análise operacional deve ser restaurada exclusivamente por analysisStorage.
           excecoes: state.excecoes || [],
-          logs: (state.logs || []).slice(0, MAX_LOGS),
         };
       },
       partialize: (state) => ({
-        // Correção de quota: notas SEFAZ, RFT006/ERP, payloads e dataset são snapshots
-        // pesados da análise e permanecem somente em memória durante a sessão V1.
-        empresas: state.empresas,
+        // Fonte única para restaurar análise: analysisStorage.
+        // O persist do Zustand guarda apenas dados locais permanentes.
         excecoes: state.excecoes,
-        logs: state.logs.slice(0, MAX_LOGS),
       }),
     }
   )

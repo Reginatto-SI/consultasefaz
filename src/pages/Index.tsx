@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ImportDialog } from "@/components/ImportDialog";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { LogsDrawer } from "@/components/LogsDrawer";
@@ -51,7 +52,7 @@ const VIEW_HEADER: Record<ViewKey, { title: string; subtitle: string }> = {
 };
 
 const Index = () => {
-  const { dataset, notas, erp, empresas, excecoes, logs, clearAnalysisData } = useStore();
+  const { dataset, notas, erp, empresas, excecoes, logs, clearAnalysisData, analysisSnapshotRestored } = useStore();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -226,7 +227,14 @@ const Index = () => {
             <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-3">
               <div>
                 <h1 className="text-lg font-semibold">{headerContent.title}</h1>
-                <p className="text-xs text-muted-foreground">{headerContent.subtitle}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-muted-foreground">{headerContent.subtitle}</p>
+                  {activeView === "conferencia" && analysisSnapshotRestored && (
+                    <Badge variant="outline" className="border-primary/30 bg-primary/5 text-[11px] font-medium text-primary">
+                      Última análise carregada deste navegador
+                    </Badge>
+                  )}
+                </div>
               </div>
               {activeView === "conferencia" && (
                 <div className="flex items-center gap-2">
