@@ -8,10 +8,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Ban, Building2, ChevronLeft, ChevronRight, ClipboardList, FileDown, FileSpreadsheet, ShieldCheck, Trash2, Upload } from "lucide-react";
 import type { DatasetLinha, StatusFinal } from "@/lib/types";
 import { ConferenciaView } from "@/pages/views/ConferenciaView";
+import type { SortDirection, SortKey, SortState } from "@/pages/views/ConferenciaView";
 import { DestinatariosView } from "@/pages/views/DestinatariosView";
 import { ExcecoesView } from "@/pages/views/ExcecoesView";
 import { LogsView } from "@/pages/views/LogsView";
 import { APP_VERSION } from "@/config/appVersion";
+import { getNatureza } from "@/lib/conferencia/helpers";
 import { exportarExcelConferencia } from "@/lib/exporters/excelExporter";
 import { exportarPdfConferencia } from "@/lib/exporters/pdfExporter";
 import {
@@ -26,7 +28,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 30;
+const PAGE_SIZE_OPTIONS = [15, 30, 50, 100, 200, 500] as const;
 type ViewKey = "conferencia" | "destinatarios" | "excecoes" | "logs";
 const VIEW_HEADER: Record<ViewKey, { title: string; subtitle: string }> = {
   conferencia: {
@@ -72,6 +75,8 @@ const Index = () => {
   const [dataIni, setDataIni] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [sort, setSort] = useState<SortState>(null);
   const headerContent = VIEW_HEADER[activeView];
 
   // Base sem filtro de status para manter contadores dinâmicos dos botões rápidos
@@ -120,13 +125,21 @@ const Index = () => {
     };
   }, [filteredWithoutStatus]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sortedFiltered = useMemo(() => {
+    if (!sort) return filtered;
+    // Ordena sempre em cópia para preservar a ordem original do dataset filtrado quando a ordenação é removida.
+    return [...filtered].sort((a, b) => compareConferenciaRows(a, b, sort.key, sort.direction));
+  }, [filtered, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / pageSize));
+  const pageData = sortedFiltered.slice((page - 1) * pageSize, page * pageSize);
   useEffect(() => {
     setPage(1);
-  }, [empresaId, status, chave, dataIni, dataFim]);
+  }, [empresaId, status, chave, dataIni, dataFim, sort]);
 
-
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   // Persiste a preferência do usuário para manter a mesma largura após recarregar.
   useEffect(() => {
@@ -151,6 +164,8 @@ const Index = () => {
   const handleClearAnalysis = () => {
     clearAnalysisData();
     clearFilters();
+    setPageSize(DEFAULT_PAGE_SIZE);
+    setSort(null);
     setPage(1);
     setSelected(null);
     setImportOpen(false);
@@ -308,10 +323,20 @@ const Index = () => {
                 clearFilters={clearFilters}
                 pageData={pageData}
                 filteredLength={filtered.length}
-                pageSize={PAGE_SIZE}
+                pageSize={pageSize}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                setPageSize={(value) => {
+                  setPageSize(value);
+                  setPage(1);
+                }}
                 page={page}
                 totalPages={totalPages}
                 setPage={setPage}
+                sort={sort}
+                setSort={(value) => {
+                  setSort(value);
+                  setPage(1);
+                }}
                 setSelected={setSelected}
               />
             )}
@@ -348,6 +373,102 @@ const Index = () => {
     </div>
   );
 };
+
+function compareConferenciaRows(a: DatasetLinha, b: DatasetLinha, key: SortKey, direction: SortDirection) {
+  const modifier = direction === "asc" ? 1 : -1;
+
+  if (key === "valor_total") {
+    return compareNullableNumbers(getValorTotalOrdenavel(a), getValorTotalOrdenavel(b), modifier);
+  }
+
+  if (key === "data_emissao") {
+    return compareNullableNumbers(getTimestampOrdenavel(a.data_emissao), getTimestampOrdenavel(b.data_emissao), modifier);
+  }
+
+  return compareText(getTextoOrdenavel(a, key), getTextoOrdenavel(b, key)) * modifier;
+}
+
+function compareNullableNumbers(a: number | null, b: number | null, modifier: 1 | -1) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return (a - b) * modifier;
+}
+
+function compareText(a: string, b: string) {
+  return a.localeCompare(b, "pt-BR", { sensitivity: "base", numeric: true });
+}
+
+function getTextoOrdenavel(linha: DatasetLinha, key: SortKey) {
+  const value = key === "status"
+    ? linha.status_final
+    : key === "destinatario"
+      ? linha.payload_completo_drawer?.destinatario_apelido
+        ?? linha.payload_completo_drawer?.destinatario_nome
+        ?? linha.empresa_nome
+        ?? linha.payload_completo_drawer?.destinatario_razao_social
+      : key === "natureza"
+        ? getNatureza(linha)
+        : key === "emitente"
+          ? linha.payload_resumo_tabela?.emitente ?? linha.payload_completo_drawer?.emitente_razao_social
+          : key === "status_sefaz"
+            ? linha.status_sefaz
+            : linha.chave_nfe;
+
+  return String(value ?? "").trim();
+}
+
+function getValorTotalOrdenavel(linha: DatasetLinha) {
+  const valor = linha.payload_resumo_tabela?.valor ?? linha.payload_completo_drawer?.valor_total_nota_fiscal;
+  return normalizeCurrencyValue(valor);
+}
+
+export function normalizeCurrencyValue(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  // Aceita moedas BR e formatos americanos sem confundir decimal americano (104.00) com milhar BR.
+  const sanitized = value.trim().replace(/[^\d,.-]/g, "");
+  if (!sanitized || sanitized === "-" || sanitized === "." || sanitized === ",") return null;
+
+  const lastComma = sanitized.lastIndexOf(",");
+  const lastDot = sanitized.lastIndexOf(".");
+  const decimalSeparator = getCurrencyDecimalSeparator(sanitized, lastComma, lastDot);
+  const normalized = decimalSeparator
+    ? normalizeWithDecimalSeparator(sanitized, decimalSeparator)
+    : sanitized.replace(/[^\d-]/g, "");
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getCurrencyDecimalSeparator(value: string, lastComma: number, lastDot: number) {
+  if (lastComma >= 0 && lastDot >= 0) return lastComma > lastDot ? "," : ".";
+
+  const separator = lastComma >= 0 ? "," : lastDot >= 0 ? "." : null;
+  if (!separator) return null;
+
+  const lastSeparator = separator === "," ? lastComma : lastDot;
+  const fractionLength = value.length - lastSeparator - 1;
+  const occurrences = value.split(separator).length - 1;
+
+  if (occurrences > 1) return null;
+  return fractionLength > 0 && fractionLength <= 2 ? separator : null;
+}
+
+function normalizeWithDecimalSeparator(value: string, decimalSeparator: "," | ".") {
+  const decimalIndex = value.lastIndexOf(decimalSeparator);
+  const integerPart = value.slice(0, decimalIndex).replace(/[^\d-]/g, "");
+  const decimalPart = value.slice(decimalIndex + 1).replace(/\D/g, "");
+
+  return `${integerPart}.${decimalPart}`;
+}
+
+function getTimestampOrdenavel(value?: string | null) {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
 
 function NavItem({
   label,

@@ -1,10 +1,11 @@
 import * as React from "react";
-import { AlertCircle, AlertTriangle, Building2, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Building2, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getNatureza } from "@/lib/conferencia/helpers";
 import { formatFiscalDateBR } from "@/lib/fiscalDate";
 import type { DatasetLinha, Empresa } from "@/lib/types";
@@ -16,6 +17,10 @@ type ConferenciaStats = {
   irregulares: number;
   desconsideradas: number;
 };
+
+export type SortDirection = "asc" | "desc";
+export type SortKey = "status" | "data_emissao" | "destinatario" | "chave_nfe" | "natureza" | "emitente" | "valor_total" | "status_sefaz";
+export type SortState = { key: SortKey; direction: SortDirection } | null;
 
 type ConferenciaViewProps = {
   stats: ConferenciaStats;
@@ -36,9 +41,13 @@ type ConferenciaViewProps = {
   pageData: DatasetLinha[];
   filteredLength: number;
   pageSize: number;
+  pageSizeOptions: readonly number[];
+  setPageSize: (value: number) => void;
   page: number;
   totalPages: number;
   setPage: (value: number) => void;
+  sort: SortState;
+  setSort: (value: SortState) => void;
   setSelected: (linha: DatasetLinha) => void;
 };
 
@@ -62,9 +71,13 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     pageData,
     filteredLength,
     pageSize,
+    pageSizeOptions,
+    setPageSize,
     page,
     totalPages,
     setPage,
+    sort,
+    setSort,
     setSelected,
   } = props;
   const quickStatusFilters: Array<{ value: string; label: string; count: number }> = [
@@ -169,14 +182,14 @@ export function ConferenciaView(props: ConferenciaViewProps) {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="text-left px-3 py-2.5 font-medium w-[110px]">Status</th>
-                <th className="text-left px-3 py-2.5 font-medium w-[120px]">Emissão / Nota</th>
-                <th className="text-left px-3 py-2.5 font-medium w-[180px]">Destinatário</th>
-                <th className="text-left px-3 py-2.5 font-medium w-[210px]">Chave de Acesso</th>
-                <th className="text-left px-3 py-2.5 font-medium w-[170px]">Natureza</th>
-                <th className="text-left px-3 py-2.5 font-medium w-[240px]">Emitente</th>
-                <th className="text-right px-3 py-2.5 font-medium w-[130px]">Valor Total</th>
-                <th className="text-left px-3 py-2.5 font-medium w-[120px]">SEFAZ</th>
+                <SortableHeader className="text-left w-[110px]" label="Status" sortKey="status" sort={sort} onSort={setSort} />
+                <SortableHeader className="text-left w-[120px]" label="Emissão / Nota" sortKey="data_emissao" sort={sort} onSort={setSort} />
+                <SortableHeader className="text-left w-[180px]" label="Destinatário" sortKey="destinatario" sort={sort} onSort={setSort} />
+                <SortableHeader className="text-left w-[210px]" label="Chave de Acesso" sortKey="chave_nfe" sort={sort} onSort={setSort} />
+                <SortableHeader className="text-left w-[170px]" label="Natureza" sortKey="natureza" sort={sort} onSort={setSort} />
+                <SortableHeader className="text-left w-[240px]" label="Emitente" sortKey="emitente" sort={sort} onSort={setSort} />
+                <SortableHeader className="text-right w-[130px] justify-end" label="Valor Total" sortKey="valor_total" sort={sort} onSort={setSort} />
+                <SortableHeader className="text-left w-[120px]" label="SEFAZ" sortKey="status_sefaz" sort={sort} onSort={setSort} />
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
@@ -243,18 +256,99 @@ export function ConferenciaView(props: ConferenciaViewProps) {
             </tbody>
           </table>
         </div>
-        {filteredLength > pageSize && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-border text-sm">
-            <span className="text-muted-foreground">Página {page} de {totalPages} · {filteredLength} registros</span>
-            <div className="flex gap-2">
+        <div className="flex flex-col gap-3 px-4 py-2.5 border-t border-border text-sm lg:flex-row lg:items-center lg:justify-between">
+          <span className="text-muted-foreground">Página {page} de {totalPages} · {filteredLength} registros</span>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span>Registros por página:</span>
+              <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                <SelectTrigger className="h-8 w-[88px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizeOptions.map((option) => (
+                    <SelectItem key={option} value={String(option)}>{option}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
               <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>Anterior</Button>
+              {getPaginationItems(page, totalPages).map((item, index) => item === "ellipsis" ? (
+                <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">...</span>
+              ) : (
+                <Button
+                  key={item}
+                  size="sm"
+                  variant={item === page ? "default" : "outline"}
+                  className="h-8 min-w-8 px-2"
+                  onClick={() => setPage(item)}
+                >
+                  {item}
+                </Button>
+              ))}
               <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>Próxima</Button>
             </div>
           </div>
-        )}
+        </div>
       </Card>
     </>
   );
+}
+
+type SortableHeaderProps = {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (value: SortState) => void;
+  className?: string;
+};
+
+function SortableHeader({ label, sortKey, sort, onSort, className }: SortableHeaderProps) {
+  const active = sort?.key === sortKey;
+  const nextSort: SortState = !active
+    ? { key: sortKey, direction: "asc" }
+    : sort.direction === "asc"
+      ? { key: sortKey, direction: "desc" }
+      : null;
+  const Icon = !active ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
+
+  const ariaSort = active ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
+
+  return (
+    <th className={`px-3 py-2.5 font-medium ${className ?? ""}`} aria-sort={ariaSort}>
+      <button
+        type="button"
+        onClick={() => onSort(nextSort)}
+        className={`inline-flex w-full items-center gap-1.5 cursor-pointer rounded-sm text-inherit transition-colors hover:text-foreground ${className?.includes("justify-end") ? "justify-end" : "justify-start"}`}
+        title={`Ordenar por ${label}`}
+        aria-label={`Ordenar por ${label}`}
+      >
+        <span>{label}</span>
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground/60"}`} />
+      </button>
+    </th>
+  );
+}
+
+function getPaginationItems(currentPage: number, totalPages: number): Array<number | "ellipsis"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  const visiblePages = Array.from(pages)
+    .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+    .sort((a, b) => a - b);
+
+  return visiblePages.reduce<Array<number | "ellipsis">>((items, pageNumber) => {
+    const previous = items[items.length - 1];
+    if (typeof previous === "number" && pageNumber - previous > 1) {
+      items.push("ellipsis");
+    }
+    items.push(pageNumber);
+    return items;
+  }, []);
 }
 
 function SummaryCard({ label, value, icon, tone }: { label: string; value: number; icon: React.ReactNode; tone: "primary" | "success" | "warning" | "destructive" | "muted" }) {
