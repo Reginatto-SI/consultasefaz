@@ -175,13 +175,18 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         const amostra = Array.isArray(d.chaves_amostra_5)
           ? d.chaves_amostra_5.map((k: string) => maskChave(k)).join(", ")
           : "";
+        const amostraAuditoria = Array.isArray(d.auditoria_amostra_5_registros)
+          ? d.auditoria_amostra_5_registros
+            .map((r: any, idx: number) => `${idx + 1}) chave=${maskChave(r.chave_operacional_normalizada || "") || "vazia"}; IE=${r.inscricao_estadual_emitente || "n/a"}; emitente=${r.razao_social_emitente || "n/a"}; coluna=${r.coluna_original_chave_operacional || "n/a"}`)
+            .join(" | ")
+          : "n/a";
         store.addLog({
           tipo: "processamento",
           nivel: "aviso",
           arquivo_nome: result.arquivo,
           codigo_evento: "ERP_DIAG",
-          mensagem_usuario: `RFT006 diagnóstico: linhas=${d.total_linhas_lidas ?? "n/a"}, estruturados=${d.total_registros_estruturados ?? "n/a"}, com_chave=${d.total_com_chave_acesso ?? "n/a"}, com_ie=${d.total_com_inscricao_estadual_emitente ?? "n/a"}, sem_chave=${d.total_sem_chave ?? "n/a"}, sem_ie=${d.total_sem_ie ?? "n/a"}, chave_44_invalida=${d.total_chave_tamanho_invalido ?? "n/a"}, parse_ms=${d.tempo_parse_ms ?? d.tempo_ms ?? "n/a"}.`,
-          contexto_resumido: `amostra_chaves=${amostra || "n/a"}`,
+          mensagem_usuario: `RFT006 diagnóstico: coluna_chave_operacional=${d.auditoria_coluna_chave_operacional ?? d.coluna_chave_operacional_nome ?? "n/a"}, registros_importados=${d.auditoria_total_registros_rft006_importados ?? d.total_registros_estruturados ?? "n/a"}, chaves_unicas=${d.auditoria_total_chaves_unicas_rft006 ?? "n/a"}, linhas=${d.total_linhas_lidas ?? "n/a"}, estruturados=${d.total_registros_estruturados ?? "n/a"}, com_chave=${d.total_com_chave_acesso ?? "n/a"}, com_ie=${d.total_com_inscricao_estadual_emitente ?? "n/a"}, sem_chave=${d.total_sem_chave ?? "n/a"}, sem_ie=${d.total_sem_ie ?? "n/a"}, chave_44_invalida=${d.total_chave_tamanho_invalido ?? "n/a"}, parse_ms=${d.tempo_parse_ms ?? d.tempo_ms ?? "n/a"}.`,
+          contexto_resumido: `amostra_chaves=${amostra || "n/a"}; auditoria_5_primeiros=${amostraAuditoria}`,
         });
       }
     }
@@ -311,6 +316,36 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     );
   };
 
+  const renderErpDiagnostics = (result: ParseResult) => {
+    if (result.tipo !== "ERP" || !result.diagnostics) return null;
+
+    const d = result.diagnostics;
+    const coluna = d.auditoria_coluna_chave_operacional ?? d.coluna_chave_operacional_nome ?? "não identificada";
+    const usouFornecedor = d.coluna_chave_operacional_fornecedor === true;
+    const fallbackMessage = "A coluna `Chave de acesso fornecedor` não foi encontrada. O sistema usou `Chave de acesso` como fallback. Verifique se o relatório é adequado para conferência de notas de entrada.";
+
+    return (
+      <div
+        className={`ml-6 rounded-md border px-3 py-2 text-xs ${
+          usouFornecedor
+            ? "border-border bg-muted/30 text-foreground"
+            : "border-warning/50 bg-warning/10 text-foreground"
+        }`}
+      >
+        <p className="font-medium">Diagnóstico RFT006</p>
+        <p>Coluna usada para matching: <span className="font-semibold">{coluna}</span></p>
+        {!usouFornecedor && <p className="mt-1 text-warning">{fallbackMessage}</p>}
+        <div className="mt-1 grid gap-1 sm:grid-cols-2">
+          <span>Registros importados: {d.auditoria_total_registros_rft006_importados ?? d.total_registros_estruturados ?? "n/a"}</span>
+          <span>Chaves únicas importadas: {d.auditoria_total_chaves_unicas_rft006 ?? "n/a"}</span>
+          <span>Linhas sem chave: {d.total_sem_chave ?? "n/a"}</span>
+          <span>Linhas com chave inválida: {d.total_chave_tamanho_invalido ?? "n/a"}</span>
+          <span>Linhas sem IE: {d.total_sem_ie ?? "n/a"}</span>
+        </div>
+      </div>
+    );
+  };
+
   const renderResultList = (results: ParseResult[]) => {
     if (!results.length) return null;
 
@@ -337,6 +372,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" /> {warning}
               </div>
             ))}
+            {renderErpDiagnostics(result)}
           </div>
         ))}
       </div>

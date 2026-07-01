@@ -299,34 +299,46 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   const COL_Y_EMIT_CNPJ = 24;
   const COL_Z_IE_EMITENTE = 25; // Z = IE emitente
   const COL_AA_EMIT_RAZAO = 26;
-  const COL_AC_CHAVE = 28; // AC = Chave de acesso
+  const COL_AC_CHAVE = 28; // AC = fallback legado: Chave de acesso
 
-  // PRD 09: o layout oficial usa Z = IE do emitente e AC = Chave de acesso.
+  // PRD 09: para notas de entrada, a chave operacional do RFT006 deve priorizar
+  // a coluna do fornecedor. "Chave de acesso" fica apenas como fallback legado.
   // Validamos por nome para não aceitar apenas "quantidade de colunas" quando o cabeçalho está deslocado.
   const normalizeHeader = (h: string) => h
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
   const headerNorm = headers.map((h) => normalizeHeader(h ?? ""));
-  const isChaveHeader = (h: string) => h.includes("chave") && h.includes("acesso");
+  const isChaveFornecedorHeader = (h: string) => {
+    const compact = h.replace(/\s+/g, "");
+    return h.includes("fornecedor")
+      && (compact.includes("chaveacesso") || compact.includes("chavenfe") || compact.includes("chavenfefornecedor"));
+  };
+  const isChaveHeader = (h: string) => h.includes("chave") && h.includes("acesso") && !h.includes("fornecedor");
   const isIeHeader = (h: string) => h === "ie" || h.includes("inscricao estadual");
 
+  const chaveFornecedorCol = headerNorm.findIndex(isChaveFornecedorHeader);
   const chaveHeaderNaAC = isChaveHeader(headerNorm[COL_AC_CHAVE] || "");
+  const chaveFallback = chaveHeaderNaAC ? COL_AC_CHAVE : headerNorm.findIndex(isChaveHeader);
   const ieHeaderNaZ = isIeHeader(headerNorm[COL_Z_IE_EMITENTE] || "");
-  const chaveFallback = headerNorm.findIndex(isChaveHeader);
   const ieFallback = headerNorm.findIndex((h, idx) => idx >= COL_Z_IE_EMITENTE && isIeHeader(h));
-  const chaveCol = chaveHeaderNaAC ? COL_AC_CHAVE : chaveFallback;
+  const chaveCol = chaveFornecedorCol >= 0 ? chaveFornecedorCol : chaveFallback;
   const ieCol = ieHeaderNaZ ? COL_Z_IE_EMITENTE : ieFallback;
   const chaveColExiste = chaveCol >= 0;
   const ieColExiste = ieCol >= 0;
+  const chaveColunaFornecedorUsada = chaveFornecedorCol >= 0;
+  const chaveColunaLegadaExiste = chaveFallback >= 0;
+  const chaveColunaOriginal = chaveColExiste ? (headers[chaveCol] || `col_${chaveCol}`) : null;
 
   if (!chaveColExiste) {
-    result.errors.push("Cabeçalho RFT006 incompatível: coluna 'Chave de acesso' não encontrada.");
+    result.errors.push("Cabeçalho RFT006 incompatível: coluna 'Chave de acesso fornecedor' ou fallback 'Chave de acesso' não encontrada.");
     result.diagnostics = {
       total_linhas_lidas: dataRows.length,
       linha_cabecalho: headerRow,
       coluna_chave_encontrada: false,
+      coluna_chave_operacional_nome: null,
       coluna_ie_encontrada: ieColExiste,
       motivo_bloqueio: "ERP_LAYOUT_CHAVE_AUSENTE",
       tempo_ms: Math.round(performance.now() - t0),
@@ -361,6 +373,11 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
   let semIE = 0;
   let chaveInvalidaTamanho = 0;
   const chavesAmostra: string[] = [];
+  const registrosAmostraAuditoria: Array<Record<string, any>> = [];
+
+  if (!chaveColunaFornecedorUsada) {
+    result.warnings.push("A coluna `Chave de acesso fornecedor` não foi encontrada. O sistema usou `Chave de acesso` como fallback. Verifique se o relatório é adequado para conferência de notas de entrada.");
+  }
 
   for (let i = 0; i < dataRows.length; i++) {
     const r = dataRows[i];
@@ -377,6 +394,15 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     headers.forEach((h, idx) => {
       payload[h || `col_${idx}`] = r[idx] ?? null;
     });
+
+    if (registrosAmostraAuditoria.length < 5) {
+      registrosAmostraAuditoria.push({
+        chave_operacional_normalizada: chave,
+        inscricao_estadual_emitente: ieEmitente,
+        razao_social_emitente: String(r[COL_AA_EMIT_RAZAO] ?? "").trim() || null,
+        coluna_original_chave_operacional: chaveColunaOriginal,
+      });
+    }
 
     if (!chave) {
       semChave++;
@@ -438,6 +464,10 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       total_sem_ie: semIE,
       total_chave_tamanho_invalido: chaveInvalidaTamanho,
       chaves_amostra_5: chavesAmostra,
+      auditoria_coluna_chave_operacional: chaveColunaOriginal,
+      auditoria_total_registros_rft006_importados: regs!.length,
+      auditoria_total_chaves_unicas_rft006: new Set(comChaveEstruturada.map((r) => r.chave_acesso)).size,
+      auditoria_amostra_5_registros: registrosAmostraAuditoria,
       linha_cabecalho: headerRow,
       motivo_bloqueio: "ERP_SEM_LINHAS_COM_CHAVE",
       tempo_ms: tempoMs,
@@ -458,10 +488,17 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     total_sem_ie: semIE,
     total_chave_tamanho_invalido: chaveInvalidaTamanho,
     chaves_amostra_5: chavesAmostra,
+    auditoria_coluna_chave_operacional: chaveColunaOriginal,
+    auditoria_total_registros_rft006_importados: regs.length,
+    auditoria_total_chaves_unicas_rft006: new Set(regs.filter((r) => !!r.chave_acesso).map((r) => r.chave_acesso)).size,
+    auditoria_amostra_5_registros: registrosAmostraAuditoria,
     linha_cabecalho: headerRow,
     coluna_chave_encontrada: true,
     coluna_ie_encontrada: true,
     coluna_chave_indice: chaveCol,
+    coluna_chave_operacional_nome: chaveColunaOriginal,
+    coluna_chave_operacional_fornecedor: chaveColunaFornecedorUsada,
+    coluna_chave_fallback_legado_encontrada: chaveColunaLegadaExiste,
     coluna_ie_indice: ieCol,
     tempo_ms: tempoMs,
     tempo_parse_ms: tempoMs,
