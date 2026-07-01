@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card } from "@/components/ui/card";
-import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, XCircle, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, XCircle, Loader2, CloudUpload, FileUp, Search, ShieldCheck } from "lucide-react";
 import { parseFile, type ParseResult, type TipoImportacao } from "@/lib/importer";
 import { useStore } from "@/store/useStore";
 import { toast } from "sonner";
@@ -25,6 +23,14 @@ function maskChave(chave: string): string {
   if (!chave) return "";
   if (chave.length <= 10) return chave;
   return `${chave.slice(0, 6)}...${chave.slice(-4)}`;
+}
+
+
+function formatFileSize(size: number): string {
+  if (!Number.isFinite(size) || size <= 0) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function isQuotaExceededError(error: any): boolean {
@@ -215,6 +221,8 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         } else {
           toast.success(`Lote SEFAZ processado com sucesso: ${summary.sucessos} arquivo(s).`);
         }
+        // O stepper já comunica a conclusão da SEFAZ; limpamos o feedback para não poluir a etapa RFT006.
+        setStage("idle");
         setCurrentStep(2);
         return;
       }
@@ -379,181 +387,272 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     );
   };
 
+  const activeFiles = currentStep === 1 ? sefazFiles : erpFiles;
+  const activeResults = currentStep === 1 ? sefazResults : erpResults;
+  const stepHasError = activeResults.some((result) => !result.ok) || (!isLoadingStage(stage) && !isSuccessStage(stage) && stage !== "idle");
+  const stepHasSuccess = currentStep === 1
+    ? activeResults.some((result) => result.ok) || sefazSuccesses > 0
+    : activeResults.some((result) => result.ok) || erpSuccesses > 0;
+
+  const onDropFiles = (files: FileList | null, step: WizardStep) => {
+    if (!files || processing) return;
+    const selected = Array.from(files);
+    if (step === 1) {
+      setSefazFiles(selected);
+      setSefazResults([]);
+    } else {
+      setErpFiles(selected);
+      setErpResults([]);
+    }
+    setStage("idle");
+  };
+
+  const renderStepper = () => {
+    const firstDone = currentStep > 1 || sefazSuccesses > 0;
+    return (
+      <div className="mx-auto mt-6 grid w-full max-w-3xl grid-cols-[1fr_auto_1fr] items-start gap-3">
+        <div className="flex items-start gap-3">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${currentStep === 1 ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20" : firstDone ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}>
+            {firstDone ? <CheckCircle2 className="h-5 w-5" /> : "1"}
+          </div>
+          <div className="min-w-0 pt-1">
+            <p className={`text-sm font-semibold ${currentStep === 1 ? "text-primary" : "text-foreground"}`}>SEFAZ</p>
+            <p className="text-xs text-muted-foreground">Relatório baixado da SEFAZ</p>
+          </div>
+        </div>
+        <div className="mt-5 h-0.5 w-20 rounded bg-muted sm:w-40">
+          <div className={`h-full rounded bg-primary transition-all ${firstDone ? "w-full" : "w-1/2"}`} />
+        </div>
+        <div className="flex items-start gap-3">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${currentStep === 2 ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "border-border bg-background text-muted-foreground"}`}>
+            {currentStep === 3 ? <CheckCircle2 className="h-5 w-5" /> : "2"}
+          </div>
+          <div className="min-w-0 pt-1">
+            <p className={`text-sm font-semibold ${currentStep === 2 ? "text-primary" : "text-foreground"}`}>RFT006 / ERP</p>
+            <p className="text-xs text-muted-foreground">Relatório exportado do ERP/Maxicon</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderUploadCard = (step: WizardStep) => {
+    const isSefaz = step === 1;
+    const files = isSefaz ? sefazFiles : erpFiles;
+    const inputId = isSefaz ? "sefaz-files" : "erp-files";
+    const removeFile = (index: number) => {
+      if (isSefaz) setSefazFiles(sefazFiles.filter((_, itemIndex) => itemIndex !== index));
+      else setErpFiles(erpFiles.filter((_, itemIndex) => itemIndex !== index));
+      setStage("idle");
+    };
+    const stateClass = stepHasError
+      ? "border-destructive/60 bg-destructive/5"
+      : files.length > 0 || stepHasSuccess
+      ? "border-success/60 bg-success/5"
+      : "border-primary/50 bg-primary/5 hover:bg-primary/10";
+
+    return (
+      <label
+        htmlFor={inputId}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          onDropFiles(event.dataTransfer.files, step);
+        }}
+        className={`block cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition ${stateClass} ${processing ? "pointer-events-none opacity-70" : ""}`}
+      >
+        <input
+          id={inputId}
+          type="file"
+          multiple
+          accept=".xlsx,.xls"
+          disabled={processing}
+          onChange={(e) => {
+            onDropFiles(e.target.files, step);
+            // Permite remover e selecionar o mesmo arquivo novamente no input nativo.
+            e.currentTarget.value = "";
+          }}
+          className="sr-only"
+        />
+        {files.length === 0 ? (
+          <div className="flex min-h-44 flex-col items-center justify-center gap-3">
+            <CloudUpload className="h-14 w-14 text-primary" />
+            <div>
+              <p className="text-lg font-semibold text-foreground">Clique para selecionar arquivo(s)</p>
+              <p className="mt-1 text-sm text-muted-foreground">ou arraste e solte aqui</p>
+            </div>
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">Formatos aceitos: .xls e .xlsx</span>
+          </div>
+        ) : (
+          <div className="space-y-3 text-left">
+            <div className="flex items-center justify-center gap-2 text-sm font-medium text-success">
+              <CheckCircle2 className="h-4 w-4" /> Arquivo(s) selecionado(s)
+            </div>
+            {files.map((file, index) => (
+              <div key={index} className="flex items-center gap-3 rounded-xl border bg-background/80 px-4 py-3 shadow-sm">
+                <FileSpreadsheet className="h-5 w-5 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                  {formatFileSize(file.size) && <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    removeFile(index);
+                  }}
+                  disabled={processing}
+                  aria-label={`Remover arquivo ${file.name}`}
+                  className="h-8 px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <p className="text-center text-xs text-muted-foreground">Clique no card para substituir ou adicionar arquivo(s).</p>
+          </div>
+        )}
+      </label>
+    );
+  };
+
+  const renderInfoBlock = (items: string[]) => (
+    <div className="rounded-2xl border bg-background p-4">
+      <div className="flex gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <FileSpreadsheet className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="font-semibold">O que este arquivo deve conter?</p>
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            {items.map((item) => (
+              <li key={item} className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary" /> {item}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderHowItWorks = () => (
+    <Card className="h-full rounded-2xl bg-muted/20 p-5 shadow-none">
+      <h3 className="font-semibold">Como funciona</h3>
+      <div className="mt-6 space-y-5">
+        {[
+          [FileUp, "Enviar SEFAZ", "Importe o relatório baixado da SEFAZ."],
+          [FileSpreadsheet, "Enviar RFT006 / ERP", "Importe o relatório exportado do ERP."],
+          [Search, "Conferir resultados", "O sistema compara os relatórios e exibe as divergências para análise."],
+        ].map(([Icon, title, desc], index) => {
+          const StepIcon = Icon as typeof FileUp;
+          return (
+            <div key={String(title)} className="flex gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><StepIcon className="h-5 w-5" /></div>
+              <div>
+                <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full border bg-background text-xs font-semibold text-primary">{index + 1}</span><p className="text-sm font-semibold">{title as string}</p></div>
+                <p className="mt-1 text-sm text-muted-foreground">{desc as string}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-8 flex gap-3 rounded-xl border bg-background/80 p-3 text-sm text-muted-foreground">
+        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-success" />
+        <span>Os arquivos são processados localmente no navegador.</span>
+      </div>
+    </Card>
+  );
+
+  const renderWizardStep = () => {
+    const isSefaz = currentStep === 1;
+    return (
+      <>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <Card className="rounded-2xl p-5 shadow-none">
+            <h3 className="text-lg font-semibold">{isSefaz ? "Envie o relatório da SEFAZ" : "Envie o relatório RFT006 / ERP"}</h3>
+            <div className="mt-5 space-y-5">
+              {renderUploadCard(currentStep)}
+              {renderInfoBlock(isSefaz ? ["Chave da NF-e", "Situação da nota", "Emitente e destinatário"] : ["Chave de acesso", "IE do emitente", "Dados da escrituração no ERP"])}
+              {renderStageBanner()}
+              {renderResultList(isSefaz ? sefazResults : erpResults)}
+            </div>
+          </Card>
+          {renderHowItWorks()}
+        </div>
+        <div className="mt-6 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-44">
+            <p className="text-sm font-medium text-muted-foreground">Etapa {currentStep} de 2</p>
+            <Progress value={currentStep === 1 ? 50 : 100} className="mt-2 h-1.5" />
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (isSefaz) {
+                  handleClose(false);
+                  return;
+                }
+                setStage("idle");
+                setCurrentStep(1);
+              }}
+              disabled={processing}
+            >
+              {isSefaz ? "Cancelar" : "Voltar"}
+            </Button>
+            <Button onClick={isSefaz ? handleProcessSefaz : handleProcessErp} disabled={!activeFiles.length || processing} className="min-w-52">
+              {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+              {processing ? "Processando..." : isSefaz ? "Continuar para RFT006" : "Finalizar importação"}
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Importar relatórios para conferência</DialogTitle>
-          <DialogDescription asChild>
-            <div className="space-y-2">
-              <div className="grid gap-2 text-sm">
-                <div className="rounded-md border bg-muted/30 px-3 py-2">1. SEFAZ — relatório baixado da SEFAZ com as notas fiscais de entrada.</div>
-                <div className="rounded-md border bg-muted/30 px-3 py-2">2. RFT006 / ERP — relatório exportado do ERP/Maxicon para confirmar o que já foi lançado.</div>
+      <DialogContent className="max-h-[92vh] max-w-6xl overflow-y-auto p-0">
+        <div className="p-6 sm:p-8">
+          <DialogHeader className="relative pr-8">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Upload className="h-6 w-6" />
               </div>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p>Depois da importação, o sistema compara os relatórios e mostra notas OK, faltantes e irregulares.</p>
-                <p>Formatos aceitos: .xlsx e .xls.</p>
+              <div>
+                <DialogTitle className="text-2xl">Importar relatórios para conferência</DialogTitle>
+                <DialogDescription className="mt-2 text-sm">Siga as 2 etapas para importar e conferir os relatórios.</DialogDescription>
               </div>
             </div>
-          </DialogDescription>
-        </DialogHeader>
+          </DialogHeader>
 
-        {currentStep === 1 && (
-          <div className="space-y-4 mt-2">
-            <div>
-              <p className="text-sm font-semibold">1 de 2 — Envie o relatório da SEFAZ</p>
-              <p className="text-xs text-muted-foreground mt-1">Selecione o Excel baixado da SEFAZ. Ele deve conter a chave da NF-e, situação da nota, emitente e destinatário.</p>
-              <Accordion type="single" collapsible className="mt-2">
-                <AccordionItem value="sefaz-help" className="border-b-0">
-                  <AccordionTrigger className="py-2 text-xs text-muted-foreground">Como identificar este relatório?</AccordionTrigger>
-                  <AccordionContent className="text-xs text-muted-foreground">
-                    O relatório SEFAZ normalmente possui: Data de emissão, Chave de acesso, Situação, Dados do Emitente e Dados do Destinatário.
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </div>
+          {currentStep !== 3 && renderStepper()}
 
-            <div>
-              <Label htmlFor="sefaz-files">Relatório SEFAZ</Label>
-              <Input
-                id="sefaz-files"
-                type="file"
-                multiple
-                accept=".xlsx,.xls"
-                disabled={processing}
-                onChange={(e) => {
-                  setSefazFiles(Array.from(e.target.files || []));
-                  setSefazResults([]);
-                  setStage("idle");
-                }}
-                className="mt-1.5"
-              />
-            </div>
-
-            {sefazFiles.length > 0 && (
-              <div className="space-y-1.5 max-h-40 overflow-auto">
-                {sefazFiles.map((file, index) => (
-                  <Card key={index} className="flex items-center gap-2 text-sm bg-muted/50 px-3 py-2 shadow-none">
-                    <FileSpreadsheet className="h-4 w-4 text-primary" />
-                    <span className="flex-1 truncate">{file.name}</span>
-                    <button
-                      onClick={() => setSefazFiles(sefazFiles.filter((_, itemIndex) => itemIndex !== index))}
-                      className="text-muted-foreground hover:text-foreground"
-                      disabled={processing}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </Card>
-                ))}
+          <div className="mt-8">
+            {currentStep === 1 && renderWizardStep()}
+            {currentStep === 2 && renderWizardStep()}
+            {currentStep === 3 && (
+              <div className="space-y-4">
+                <div className="rounded-2xl border bg-success/5 p-6 text-center">
+                  <CheckCircle2 className="mx-auto h-12 w-12 text-success" />
+                  <p className="mt-3 text-lg font-semibold">Conferência concluída</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Os relatórios foram importados e a conferência foi atualizada.</p>
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-sm">
+                  <p>SEFAZ: {sefazSuccesses} arquivo(s) importado(s)</p>
+                  <p>RFT006/ERP: {erpSuccesses} arquivo(s) importado(s)</p>
+                  <p>Avisos: {totalWarnings}</p>
+                  <p>Erros: {totalErrors}</p>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={resetWizard}>Importar novamente</Button>
+                  <Button onClick={() => handleClose(false)}>Ver conferência</Button>
+                </div>
               </div>
             )}
-
-            {renderStageBanner()}
-            {renderResultList(sefazResults)}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => handleClose(false)} disabled={processing}>
-                Fechar
-              </Button>
-              <Button onClick={handleProcessSefaz} disabled={!sefazFiles.length || processing}>
-                <Upload className="h-4 w-4 mr-2" />
-                {processing ? "Processando..." : "Continuar para o relatório ERP"}
-              </Button>
-            </div>
           </div>
-        )}
-
-        {currentStep === 2 && (
-          <div className="space-y-4 mt-2">
-            <div>
-              <p className="text-sm font-semibold">2 de 2 — Envie o relatório RFT006 do ERP</p>
-              <p className="text-xs text-muted-foreground mt-1">Selecione o Excel exportado do ERP/Maxicon. Ele será usado para verificar quais notas da SEFAZ já foram escrituradas.</p>
-              {sefazSuccesses > 0 && (
-                <p className="text-xs text-success mt-2">Relatório SEFAZ importado com sucesso. Agora envie o relatório RFT006 / ERP.</p>
-              )}
-              <Accordion type="single" collapsible className="mt-2">
-                <AccordionItem value="erp-help" className="border-b-0">
-                  <AccordionTrigger className="py-2 text-xs text-muted-foreground">Como identificar este relatório?</AccordionTrigger>
-                  <AccordionContent className="text-xs text-muted-foreground">
-                    O RFT006 normalmente possui colunas como IE, Chave de acesso, Nota, Emissão, CNPJ e Razão Social.
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </div>
-
-            <div>
-              <Label htmlFor="erp-files">Relatório RFT006 / ERP</Label>
-              <Input
-                id="erp-files"
-                type="file"
-                multiple
-                accept=".xlsx,.xls"
-                disabled={processing}
-                onChange={(e) => {
-                  setErpFiles(Array.from(e.target.files || []));
-                  setErpResults([]);
-                  setStage("idle");
-                }}
-                className="mt-1.5"
-              />
-            </div>
-
-            {erpFiles.length > 0 && (
-              <div className="space-y-1.5 max-h-40 overflow-auto">
-                {erpFiles.map((file, index) => (
-                  <Card key={index} className="flex items-center gap-2 text-sm bg-muted/50 px-3 py-2 shadow-none">
-                    <FileSpreadsheet className="h-4 w-4 text-primary" />
-                    <span className="flex-1 truncate">{file.name}</span>
-                    <button
-                      onClick={() => setErpFiles(erpFiles.filter((_, itemIndex) => itemIndex !== index))}
-                      className="text-muted-foreground hover:text-foreground"
-                      disabled={processing}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {renderStageBanner()}
-            {renderResultList(erpResults)}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setCurrentStep(1)} disabled={processing}>
-                Voltar
-              </Button>
-              <Button onClick={handleProcessErp} disabled={!erpFiles.length || processing}>
-                <Upload className="h-4 w-4 mr-2" />
-                {processing ? "Processando..." : "Concluir importação e conferir notas"}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 3 && (
-          <div className="space-y-4 mt-2">
-            <div>
-              <p className="text-sm font-semibold">Conferência concluída</p>
-              <p className="text-xs text-muted-foreground mt-1">Os relatórios foram importados e a conferência foi atualizada.</p>
-            </div>
-
-            <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-sm">
-              <p>SEFAZ: {sefazSuccesses} arquivo(s) importado(s)</p>
-              <p>RFT006/ERP: {erpSuccesses} arquivo(s) importado(s)</p>
-              <p>Avisos: {totalWarnings}</p>
-              <p>Erros: {totalErrors}</p>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={resetWizard}>
-                Importar novamente
-              </Button>
-              <Button onClick={() => handleClose(false)}>Ver conferência</Button>
-            </div>
-          </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
-  );
-}
+  );}
