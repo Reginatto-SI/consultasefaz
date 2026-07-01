@@ -48,7 +48,8 @@ A linha de cabeçalho deve conter, no mínimo, os títulos necessários para res
 | Z | IE | inscricao_estadual_emitente | IE do emitente/fornecedor escriturado |
 | AA | Razão Social | emitente_razao_social | Razão social do emitente/fornecedor |
 | AB | Série NF. | serie_nota_fiscal | Série da NF |
-| AC | Chave de acesso | chave_acesso | Chave da NF-e escriturada |
+| AC | Chave de acesso | chave_acesso (fallback) | Fallback legado/informativo; pode representar chave de nota emitida e não deve prevalecer quando existir chave do fornecedor |
+| Conforme cabeçalho | Chave de acesso fornecedor | chave_acesso | Chave operacional prioritária para notas fiscais de entrada; aceita variações como `Chave Acesso Fornecedor`, `Chave de Acesso Fornecedor`, `Chave NFe Fornecedor` e `Chave NF-e Fornecedor` |
 | AD | Usuáro Lançamento | usuario_lancamento | Usuário que lançou |
 | AE | NCM ITEM | ncm_item | NCM do item |
 | AF | PIS | pis | Valor ou indicador de PIS |
@@ -89,7 +90,7 @@ Importante:
 - Campos não mapeados na estrutura mínima não devem ser descartados.
 
 ## 11. Regras de normalização
-- `chave_acesso`: remover máscara, espaços e caracteres não numéricos.
+- `chave_acesso`: remover máscara, espaços e caracteres não numéricos a partir da coluna operacional resolvida. Para RFT006 de entrada, priorizar `Chave de acesso fornecedor`; usar `Chave de acesso` apenas como fallback temporário quando a coluna do fornecedor não existir.
 - `inscricao_estadual_emitente`: remover máscara e espaços.
 - Campos textuais: trim e padronização de caixa conforme PRD 02/07.
 - Campos monetários e datas: padronizar para formato interno consumível no pipeline.
@@ -103,7 +104,7 @@ Importante:
 Devem bloquear importação do arquivo RFT006:
 - Formato diferente de `.xls` ou `.xlsx`.
 - Arquivo vazio.
-- Ausência total de coluna mapeável para `chave_acesso`.
+- Ausência total de coluna mapeável para `chave_acesso` (`Chave de acesso fornecedor` ou fallback `Chave de acesso`).
 - Ausência total de coluna mapeável para `inscricao_estadual_emitente`.
 - Cabeçalho incompatível que impeça resolução dos campos estruturais mínimos.
 
@@ -113,12 +114,15 @@ Devem permitir continuidade com registro no PRD 06:
 - Linha sem `chave_acesso` não participa do matching; não bloqueia o arquivo inteiro quando as colunas obrigatórias existirem no cabeçalho.
 - Linhas inelegíveis devem ser preservadas no payload/registro de importação quando tecnicamente viável.
 - Linhas inelegíveis devem gerar aviso operacional quando representarem inconsistência relevante.
+- Quando `Chave de acesso fornecedor` e `Chave de acesso` existirem no mesmo arquivo, registrar diagnóstico informando que a chave operacional usada foi a do fornecedor.
+- Quando apenas `Chave de acesso` existir, registrar aviso operacional informando fallback temporário por ausência de `Chave de acesso fornecedor`.
 - Colunas opcionais ausentes.
 - Colunas adicionais preservadas apenas em `payload_completo_erp`.
 
 ## 15. Regra oficial de uso da IE do emitente
 - `Z = IE` deve ser interpretada como `inscricao_estadual_emitente`.
-- `AC = Chave de acesso` deve ser interpretada como `chave_acesso`.
+- Para notas fiscais de entrada, `Chave de acesso fornecedor` deve ser interpretada como `chave_acesso` com prioridade sobre `Chave de acesso`.
+- `AC = Chave de acesso` deve ser interpretada como `chave_acesso` somente como fallback temporário quando não existir coluna de chave do fornecedor.
 - `chave_acesso` e `inscricao_estadual_emitente` são os campos RFT006 disponibilizados ao motor conforme PRD 05.
 - A coluna `IE` pode conter texto operacional de isenção, como `ISENTO`, `ISENTA` ou equivalente; o valor bruto deve ser preservado no payload quando tecnicamente viável, e a normalização/equivalência para matching pertence ao PRD 05.
 - Este PRD não define matriz de matching ou classificação; define apenas origem, layout e elegibilidade dos campos RFT006.
