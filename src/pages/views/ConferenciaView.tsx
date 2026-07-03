@@ -85,12 +85,12 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     setSort,
     setSelected,
   } = props;
-  const quickStatusFilters: Array<{ value: string; label: string; count: number }> = [
-    { value: "all", label: "Todos", count: stats.total },
-    { value: "FALTANTE", label: "Faltante", count: stats.faltantes },
-    { value: "OK", label: "OK", count: stats.ok },
-    { value: "IRREGULAR", label: "Irregular", count: stats.irregulares },
-    { value: "DESCONSIDERADA", label: "Desconsiderada", count: stats.desconsideradas },
+  const statusSummaryCards: Array<{ value: string; label: string; count: number; icon: React.ReactNode; tone: SummaryCardTone }> = [
+    { value: "all", label: "Total", count: stats.total, icon: <FileText className="h-4 w-4" />, tone: "primary" },
+    { value: "OK", label: "OK", count: stats.ok, icon: <ShieldCheck className="h-4 w-4" />, tone: "success" },
+    { value: "FALTANTE", label: "Faltantes", count: stats.faltantes, icon: <CircleHelp className="h-4 w-4" />, tone: "warning" },
+    { value: "IRREGULAR", label: "Irregulares", count: stats.irregulares, icon: <AlertCircle className="h-4 w-4" />, tone: "destructive" },
+    { value: "DESCONSIDERADA", label: "Desconsideradas", count: stats.desconsideradas, icon: <Building2 className="h-4 w-4" />, tone: "muted" },
   ];
   const situacaoXmlOptions: Array<{ value: SituacaoXmlFiltro; label: string }> = [
     { value: "all", label: "Todos" },
@@ -118,13 +118,6 @@ export function ConferenciaView(props: ConferenciaViewProps) {
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-        <SummaryCard label="Total" value={stats.total} icon={<FileText className="h-4 w-4" />} tone="primary" />
-        <SummaryCard label="OK" value={stats.ok} icon={<ShieldCheck className="h-4 w-4" />} tone="success" />
-        <SummaryCard label="Faltantes" value={stats.faltantes} icon={<CircleHelp className="h-4 w-4" />} tone="warning" />
-        <SummaryCard label="Irregulares" value={stats.irregulares} icon={<AlertCircle className="h-4 w-4" />} tone="destructive" />
-        <SummaryCard label="Desconsideradas" value={stats.desconsideradas} icon={<Building2 className="h-4 w-4" />} tone="muted" />
-      </div>
 
       <Card className="p-3 md:p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
@@ -152,20 +145,18 @@ export function ConferenciaView(props: ConferenciaViewProps) {
           </div>
           <Button variant="outline" size="sm" className="h-9" onClick={clearFilters}>Limpar filtros</Button>
         </div>
-        <div className="mt-3">
-          <Label className="text-xs">Status</Label>
-          {/* Filtro ativo em azul forte; filtros inativos ficam discretos para não parecerem selecionados. */}
-          <div className="mt-1 flex flex-wrap gap-2">
-            {quickStatusFilters.map((filter) => (
-              <QuickFilterButton
-                key={filter.value}
-                label={filter.label}
-                count={filter.count}
-                active={status === filter.value}
-                onClick={() => setStatus(filter.value)}
-              />
-            ))}
-          </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-5">
+          {statusSummaryCards.map((filter) => (
+            <SummaryCard
+              key={filter.value}
+              label={filter.label}
+              value={filter.count}
+              icon={filter.icon}
+              tone={filter.tone}
+              active={status === filter.value}
+              onClick={() => setStatus(filter.value)}
+            />
+          ))}
         </div>
         <div className="mt-3">
           <Label className="text-xs">Destinatário</Label>
@@ -373,7 +364,9 @@ function getPaginationItems(currentPage: number, totalPages: number): Array<numb
   }, []);
 }
 
-function SummaryCard({ label, value, icon, tone }: { label: string; value: number; icon: React.ReactNode; tone: "primary" | "success" | "warning" | "destructive" | "muted" }) {
+type SummaryCardTone = "primary" | "success" | "warning" | "destructive" | "muted";
+
+function SummaryCard({ label, value, icon, tone, active, onClick }: { label: string; value: number; icon: React.ReactNode; tone: SummaryCardTone; active: boolean; onClick: () => void }) {
   const toneClasses: Record<string, string> = {
     primary: "bg-primary/10 text-primary",
     success: "bg-success/10 text-success",
@@ -381,14 +374,34 @@ function SummaryCard({ label, value, icon, tone }: { label: string; value: numbe
     destructive: "bg-destructive/10 text-destructive",
     muted: "bg-muted text-muted-foreground",
   };
+  // Os cards de resumo agora são o próprio filtro de status; o destaque usa token do tema para claro/escuro.
   return (
-    <Card className="p-3 flex items-center gap-3">
-      <div className={`h-9 w-9 rounded-md flex items-center justify-center ${toneClasses[tone]}`}>{icon}</div>
-      <div>
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
-        <p className="text-xl font-bold tabular-nums leading-tight">{value}</p>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`relative overflow-hidden rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+        active
+          ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/30"
+          : "border-border bg-card hover:border-primary/50 hover:bg-muted/30"
+      }`}
+    >
+      {active && <span className="absolute inset-y-0 left-0 w-1 bg-primary" aria-hidden="true" />}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className={`h-9 w-9 rounded-md flex items-center justify-center ${toneClasses[tone]}`}>{icon}</div>
+          <div className="min-w-0">
+            <p className={`text-[11px] uppercase tracking-wide font-semibold ${active ? "text-primary" : "text-muted-foreground"}`}>{label}</p>
+            <p className={`text-xl font-bold tabular-nums leading-tight ${active ? "text-primary" : "text-foreground"}`}>{value}</p>
+          </div>
+        </div>
+        {active && (
+          <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground">
+            Selecionado
+          </span>
+        )}
       </div>
-    </Card>
+    </button>
   );
 }
 
