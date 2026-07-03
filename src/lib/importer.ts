@@ -127,7 +127,8 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       return result;
     }
 
-    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null }) as any[][];
+    // MaxysXML/MasterXML precisa do texto formatado para preservar chaves NF-e longas; SEFAZ/RFT006 mantêm a leitura bruta anterior.
+    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: tipo !== "MAXYSXML" }) as any[][];
   } catch (e: any) {
     result.errors.push(e?.message || "Não foi possível ler o arquivo Excel.");
     result.diagnostics = {

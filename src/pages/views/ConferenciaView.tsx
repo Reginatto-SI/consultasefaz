@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getNatureza } from "@/lib/conferencia/helpers";
 import { formatFiscalDateBR } from "@/lib/fiscalDate";
-import type { DatasetLinha, Empresa } from "@/lib/types";
+import type { DatasetLinha, Empresa, SituacaoXmlMaxys } from "@/lib/types";
 
 type ConferenciaStats = {
   total: number;
@@ -20,6 +20,7 @@ type ConferenciaStats = {
 
 export type SortDirection = "asc" | "desc";
 export type SortKey = "status" | "data_emissao" | "destinatario" | "chave_nfe" | "natureza" | "emitente" | "valor_total" | "status_sefaz";
+export type SituacaoXmlFiltro = SituacaoXmlMaxys | "all";
 export type SortState = { key: SortKey; direction: SortDirection } | null;
 
 type ConferenciaViewProps = {
@@ -31,6 +32,8 @@ type ConferenciaViewProps = {
   destinatarioTotalCount: number;
   status: string;
   setStatus: (value: string) => void;
+  situacaoXml: SituacaoXmlFiltro;
+  setSituacaoXml: (value: SituacaoXmlFiltro) => void;
   dataIni: string;
   setDataIni: (value: string) => void;
   dataFim: string;
@@ -61,6 +64,8 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     destinatarioTotalCount,
     status,
     setStatus,
+    situacaoXml,
+    setSituacaoXml,
     dataIni,
     setDataIni,
     dataFim,
@@ -86,6 +91,13 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     { value: "OK", label: "OK", count: stats.ok },
     { value: "IRREGULAR", label: "Irregular", count: stats.irregulares },
     { value: "DESCONSIDERADA", label: "Desconsiderada", count: stats.desconsideradas },
+  ];
+  const situacaoXmlOptions: Array<{ value: SituacaoXmlFiltro; label: string }> = [
+    { value: "all", label: "Todos" },
+    { value: "XML_PRESENTE", label: "Encontrado" },
+    { value: "XML_PENDENTE_MAXYS", label: "Pendente" },
+    { value: "XML_PRESENTE_NAO_ARMAZENADO", label: "Verificar armazenamento" },
+    { value: "NAO_ANALISADO", label: "Não analisado" },
   ];
   const quickDestinatarioFilters = empresas.map((empresa) => ({
     value: empresa.id,
@@ -130,6 +142,13 @@ export function ConferenciaView(props: ConferenciaViewProps) {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input value={chave} onChange={(e) => setChave(e.target.value)} placeholder="Chave..." className="pl-8 h-9" />
             </div>
+          </div>
+          <div>
+            <Label className="text-xs">Situação XML</Label>
+            <Select value={situacaoXml} onValueChange={(value) => setSituacaoXml(value as SituacaoXmlFiltro)}>
+              <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{situacaoXmlOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
           <Button variant="outline" size="sm" className="h-9" onClick={clearFilters}>Limpar filtros</Button>
         </div>
@@ -190,13 +209,15 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                 <SortableHeader className="text-left w-[240px]" label="Emitente" sortKey="emitente" sort={sort} onSort={setSort} />
                 <SortableHeader className="text-right w-[130px] justify-end" label="Valor Total" sortKey="valor_total" sort={sort} onSort={setSort} />
                 <SortableHeader className="text-left w-[120px]" label="SEFAZ" sortKey="status_sefaz" sort={sort} onSort={setSort} />
+                {/* Indicador operacional complementar; o status principal permanece exclusivamente na coluna Status. */}
+                <th className="px-3 py-2.5 text-left font-medium w-[150px]">XML MaxysXML</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={10} className="text-center py-12 text-muted-foreground">
                     <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p className="font-medium">Sem dados para exibir</p>
                     <p className="text-xs mt-1">Importe arquivos SEFAZ e ERP para iniciar a conferência.</p>
@@ -246,6 +267,7 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{formatValorTotal(l)}</td>
                   <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">{l.status_sefaz ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{labelSituacaoXmlConferencia(l.maxysxml?.situacao_xml_maxys)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelected(l); }}>
                       <Ellipsis className="h-4 w-4" />
@@ -510,4 +532,13 @@ function normalizeDestinatarioLabel(value?: string) {
 
 function isGeneratedEmpresaLabel(value?: string) {
   return /^Empresa\s+/i.test(value?.trim() ?? "");
+}
+
+
+export function labelSituacaoXmlConferencia(situacao?: SituacaoXmlMaxys) {
+  if (situacao === "XML_PRESENTE") return "Encontrado";
+  if (situacao === "XML_PENDENTE_MAXYS") return "Pendente";
+  if (situacao === "XML_PRESENTE_NAO_ARMAZENADO") return "Verificar armazenamento";
+  if (situacao === "NAO_ANALISADO" || !situacao) return "Não analisado";
+  return "—";
 }
