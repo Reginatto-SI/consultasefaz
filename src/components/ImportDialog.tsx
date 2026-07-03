@@ -8,7 +8,7 @@ import { parseFile, type ParseResult, type TipoImportacao } from "@/lib/importer
 import { useStore } from "@/store/useStore";
 import { toast } from "sonner";
 
-type WizardStep = 1 | 2 | 3;
+type WizardStep = 1 | 2 | 3 | 4;
 
 // Etapas mostradas no modal para o usuário enxergar progresso e nunca ver "Processando..." preso.
 type StageMsg =
@@ -63,8 +63,10 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [sefazFiles, setSefazFiles] = useState<File[]>([]);
   const [erpFiles, setErpFiles] = useState<File[]>([]);
+  const [maxysFiles, setMaxysFiles] = useState<File[]>([]);
   const [sefazResults, setSefazResults] = useState<ParseResult[]>([]);
   const [erpResults, setErpResults] = useState<ParseResult[]>([]);
+  const [maxysResults, setMaxysResults] = useState<ParseResult[]>([]);
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<StageMsg>("idle");
   const store = useStore();
@@ -73,8 +75,10 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     setCurrentStep(1);
     setSefazFiles([]);
     setErpFiles([]);
+    setMaxysFiles([]);
     setSefazResults([]);
     setErpResults([]);
+    setMaxysResults([]);
     setProcessing(false);
     setStage("idle");
   };
@@ -140,6 +144,15 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       }
     }
 
+    if (tipo === "MAXYSXML") {
+      const registrosMaxys = successResults.flatMap((result) => result.registrosMaxysXML || []);
+      if (registrosMaxys.length) {
+        setStage("Atualizando conferência...");
+        await tick();
+        store.ingestMaxysXML(registrosMaxys, importacaoId, files.map((file) => file.name).join(", "));
+      }
+    }
+
     if (tipo === "ERP") {
       // PROTEÇÃO: só agregamos registros de arquivos cujo parse foi OK.
       // Se TODOS os arquivos falharam, NÃO chamamos ingestErp — assim o snapshot ERP atual
@@ -158,7 +171,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           tipo: "importacao",
           nivel: "erro",
           arquivo_nome: result.arquivo,
-          codigo_evento: tipo === "ERP" ? "IMPORT_ERR_ERP" : "IMPORT_ERR_SEFAZ",
+          codigo_evento: tipo === "MAXYSXML" ? "IMPORT_ERR_MAXYSXML" : tipo === "ERP" ? "IMPORT_ERR_ERP" : "IMPORT_ERR_SEFAZ",
           mensagem_usuario: error,
           contexto_resumido: result.diagnostics
             ? `motivo=${result.diagnostics.motivo_bloqueio || "n/a"}, linhas=${result.diagnostics.total_linhas_lidas ?? "n/a"}, cabecalho=${result.diagnostics.linha_cabecalho ?? "n/a"}, tempo_ms=${result.diagnostics.tempo_ms ?? "n/a"}`
@@ -257,7 +270,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       setErpResults(summary.results);
 
       if (summary.sucessos > 0) {
-        setStage("Conferência concluída");
+        setStage("idle");
         if (summary.erros > 0) {
           toast.warning(`Lote RFT006 processado com ressalvas: ${summary.sucessos} sucesso(s) e ${summary.erros} erro(s).`);
         } else {
@@ -289,6 +302,40 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     }
   };
 
+
+  const handleProcessMaxys = async () => {
+    if (processing) return;
+    setProcessing(true);
+    setStage("Lendo arquivo...");
+    try {
+      const summary = await processBatch("MAXYSXML", maxysFiles);
+      setMaxysResults(summary.results);
+      if (summary.sucessos > 0) {
+        setStage("Conferência concluída");
+        toast.success(`MaxysXML processado com sucesso: ${summary.sucessos} arquivo(s).`);
+        setCurrentStep(4);
+        return;
+      }
+      const message = summarizeFailure(summary.results, "Nenhum arquivo MaxysXML foi processado com sucesso.");
+      setStage(message);
+      toast.error(message);
+    } catch (error: any) {
+      const message = `Falha inesperada no processamento do MaxysXML: ${error?.message || "erro desconhecido"}`;
+      setStage(message);
+      store.addLog({ tipo: "importacao", nivel: "erro", codigo_evento: "IMPORT_UNEXPECTED_MAXYSXML", mensagem_usuario: message });
+      toast.error(message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const skipMaxys = () => {
+    setMaxysFiles([]);
+    setMaxysResults([]);
+    setStage("Conferência concluída");
+    setCurrentStep(4);
+  };
+
   const handleClose = (v: boolean) => {
     // Permite fechar mesmo após erro; não permite fechar enquanto está realmente processando.
     if (!v && processing) return;
@@ -296,10 +343,11 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     onOpenChange(v);
   };
 
-  const totalWarnings = [...sefazResults, ...erpResults].reduce((acc, result) => acc + result.warnings.length, 0);
-  const totalErrors = [...sefazResults, ...erpResults].reduce((acc, result) => acc + result.errors.length, 0);
+  const totalWarnings = [...sefazResults, ...erpResults, ...maxysResults].reduce((acc, result) => acc + result.warnings.length, 0);
+  const totalErrors = [...sefazResults, ...erpResults, ...maxysResults].reduce((acc, result) => acc + result.errors.length, 0);
   const sefazSuccesses = sefazResults.filter((result) => result.ok).length;
   const erpSuccesses = erpResults.filter((result) => result.ok).length;
+  const maxysSuccesses = maxysResults.filter((result) => result.ok).length;
 
   const renderStageBanner = () => {
     if (stage === "idle") return null;
@@ -387,12 +435,14 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     );
   };
 
-  const activeFiles = currentStep === 1 ? sefazFiles : erpFiles;
-  const activeResults = currentStep === 1 ? sefazResults : erpResults;
+  const activeFiles = currentStep === 1 ? sefazFiles : currentStep === 2 ? erpFiles : maxysFiles;
+  const activeResults = currentStep === 1 ? sefazResults : currentStep === 2 ? erpResults : maxysResults;
   const stepHasError = activeResults.some((result) => !result.ok) || (!isLoadingStage(stage) && !isSuccessStage(stage) && stage !== "idle");
   const stepHasSuccess = currentStep === 1
     ? activeResults.some((result) => result.ok) || sefazSuccesses > 0
-    : activeResults.some((result) => result.ok) || erpSuccesses > 0;
+    : currentStep === 2
+      ? activeResults.some((result) => result.ok) || erpSuccesses > 0
+      : activeResults.some((result) => result.ok) || maxysSuccesses > 0;
 
   const onDropFiles = (files: FileList | null, step: WizardStep) => {
     if (!files || processing) return;
@@ -400,48 +450,53 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     if (step === 1) {
       setSefazFiles(selected);
       setSefazResults([]);
-    } else {
+    } else if (step === 2) {
       setErpFiles(selected);
       setErpResults([]);
+    } else {
+      setMaxysFiles(selected);
+      setMaxysResults([]);
     }
     setStage("idle");
   };
 
   const renderStepper = () => {
-    const firstDone = currentStep > 1 || sefazSuccesses > 0;
+    const steps = [
+      { n: 1, title: "SEFAZ", desc: "Relatório baixado da SEFAZ" },
+      { n: 2, title: "RFT006 / ERP", desc: "Relatório exportado do ERP/Maxicon" },
+      { n: 3, title: "MaxysXML", desc: "Relatório opcional de XMLs" },
+      { n: 4, title: "Conferir", desc: "Resultado da importação" },
+    ] as const;
+
     return (
-      <div className="mx-auto mt-6 grid w-full max-w-3xl grid-cols-[1fr_auto_1fr] items-start gap-3">
-        <div className="flex items-start gap-3">
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${currentStep === 1 ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20" : firstDone ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}>
-            {firstDone ? <CheckCircle2 className="h-5 w-5" /> : "1"}
-          </div>
-          <div className="min-w-0 pt-1">
-            <p className={`text-sm font-semibold ${currentStep === 1 ? "text-primary" : "text-foreground"}`}>SEFAZ</p>
-            <p className="text-xs text-muted-foreground">Relatório baixado da SEFAZ</p>
-          </div>
-        </div>
-        <div className="mt-5 h-0.5 w-20 rounded bg-muted sm:w-40">
-          <div className={`h-full rounded bg-primary transition-all ${firstDone ? "w-full" : "w-1/2"}`} />
-        </div>
-        <div className="flex items-start gap-3">
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${currentStep === 2 ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "border-border bg-background text-muted-foreground"}`}>
-            {currentStep === 3 ? <CheckCircle2 className="h-5 w-5" /> : "2"}
-          </div>
-          <div className="min-w-0 pt-1">
-            <p className={`text-sm font-semibold ${currentStep === 2 ? "text-primary" : "text-foreground"}`}>RFT006 / ERP</p>
-            <p className="text-xs text-muted-foreground">Relatório exportado do ERP/Maxicon</p>
-          </div>
-        </div>
+      <div className="mx-auto mt-6 grid w-full max-w-5xl grid-cols-2 gap-3 lg:grid-cols-4">
+        {steps.map((step) => {
+          const done = currentStep > step.n;
+          const active = currentStep === step.n;
+          return (
+            <div key={step.n} className="flex items-start gap-3 rounded-xl border bg-background p-3">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${active ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20" : done ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}>
+                {done ? <CheckCircle2 className="h-5 w-5" /> : step.n}
+              </div>
+              <div className="min-w-0">
+                <p className={`text-sm font-semibold ${active ? "text-primary" : "text-foreground"}`}>{step.title}</p>
+                <p className="text-xs text-muted-foreground">{step.desc}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };
 
   const renderUploadCard = (step: WizardStep) => {
     const isSefaz = step === 1;
-    const files = isSefaz ? sefazFiles : erpFiles;
-    const inputId = isSefaz ? "sefaz-files" : "erp-files";
+    const isMaxys = step === 3;
+    const files = isSefaz ? sefazFiles : isMaxys ? maxysFiles : erpFiles;
+    const inputId = isSefaz ? "sefaz-files" : isMaxys ? "maxys-files" : "erp-files";
     const removeFile = (index: number) => {
       if (isSefaz) setSefazFiles(sefazFiles.filter((_, itemIndex) => itemIndex !== index));
+      else if (isMaxys) setMaxysFiles(maxysFiles.filter((_, itemIndex) => itemIndex !== index));
       else setErpFiles(erpFiles.filter((_, itemIndex) => itemIndex !== index));
       setStage("idle");
     };
@@ -567,24 +622,26 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const renderWizardStep = () => {
     const isSefaz = currentStep === 1;
+    const isMaxys = currentStep === 3;
     return (
       <>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <Card className="rounded-2xl p-5 shadow-none">
-            <h3 className="text-lg font-semibold">{isSefaz ? "Envie o relatório da SEFAZ" : "Envie o relatório RFT006 / ERP"}</h3>
+            <h3 className="text-lg font-semibold">{isSefaz ? "Envie o relatório da SEFAZ" : isMaxys ? "Envie o relatório MaxysXML (opcional)" : "Envie o relatório RFT006 / ERP"}</h3>
             <div className="mt-5 space-y-5">
               {renderUploadCard(currentStep)}
-              {renderInfoBlock(isSefaz ? ["Chave da NF-e", "Situação da nota", "Emitente e destinatário"] : ["Chave de acesso", "IE do emitente", "Dados da escrituração no ERP"])}
+              {isMaxys && <p className="rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground">Importe este arquivo apenas se quiser identificar quais XMLs estão pendentes no MaxysXML.</p>}
+              {renderInfoBlock(isSefaz ? ["Chave da NF-e", "Situação da nota", "Emitente e destinatário"] : isMaxys ? ["Chave de Acesso", "Status XML", "Dados complementares do MaxysXML"] : ["Chave de acesso", "IE do emitente", "Dados da escrituração no ERP"])}
               {renderStageBanner()}
-              {renderResultList(isSefaz ? sefazResults : erpResults)}
+              {renderResultList(isSefaz ? sefazResults : isMaxys ? maxysResults : erpResults)}
             </div>
           </Card>
           {renderHowItWorks()}
         </div>
         <div className="mt-6 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-44">
-            <p className="text-sm font-medium text-muted-foreground">Etapa {currentStep} de 2</p>
-            <Progress value={currentStep === 1 ? 50 : 100} className="mt-2 h-1.5" />
+            <p className="text-sm font-medium text-muted-foreground">Etapa {currentStep} de 4</p>
+            <Progress value={currentStep * 25} className="mt-2 h-1.5" />
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
@@ -595,15 +652,16 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   return;
                 }
                 setStage("idle");
-                setCurrentStep(1);
+                setCurrentStep(isMaxys ? 2 : 1);
               }}
               disabled={processing}
             >
               {isSefaz ? "Cancelar" : "Voltar"}
             </Button>
-            <Button onClick={isSefaz ? handleProcessSefaz : handleProcessErp} disabled={!activeFiles.length || processing} className="min-w-52">
+            {isMaxys && <Button variant="outline" onClick={skipMaxys} disabled={processing}>Pular MaxysXML</Button>}
+            <Button onClick={isSefaz ? handleProcessSefaz : isMaxys ? (activeFiles.length ? handleProcessMaxys : skipMaxys) : handleProcessErp} disabled={(!activeFiles.length && !isMaxys) || processing} className="min-w-52">
               {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-              {processing ? "Processando..." : isSefaz ? "Continuar para RFT006" : "Finalizar importação"}
+              {processing ? "Processando..." : isSefaz ? "Continuar para RFT006" : isMaxys ? (activeFiles.length ? "Conferir MaxysXML" : "Conferir sem MaxysXML") : "Continuar para MaxysXML"}
             </Button>
           </div>
         </div>
@@ -622,17 +680,18 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </div>
               <div>
                 <DialogTitle className="text-2xl">Importar relatórios para conferência</DialogTitle>
-                <DialogDescription className="mt-2 text-sm">Siga as 2 etapas para importar e conferir os relatórios.</DialogDescription>
+                <DialogDescription className="mt-2 text-sm">Importe SEFAZ e RFT006/ERP. A etapa MaxysXML é opcional para identificar XMLs pendentes.</DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          {currentStep !== 3 && renderStepper()}
+          {currentStep !== 4 && renderStepper()}
 
           <div className="mt-8">
             {currentStep === 1 && renderWizardStep()}
             {currentStep === 2 && renderWizardStep()}
-            {currentStep === 3 && (
+            {currentStep === 3 && renderWizardStep()}
+            {currentStep === 4 && (
               <div className="space-y-4">
                 <div className="rounded-2xl border bg-success/5 p-6 text-center">
                   <CheckCircle2 className="mx-auto h-12 w-12 text-success" />
@@ -642,6 +701,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-sm">
                   <p>SEFAZ: {sefazSuccesses} arquivo(s) importado(s)</p>
                   <p>RFT006/ERP: {erpSuccesses} arquivo(s) importado(s)</p>
+                  <p>MaxysXML: {maxysSuccesses ? `${maxysSuccesses} arquivo(s) importado(s)` : "não importado"}</p>
                   <p>Avisos: {totalWarnings}</p>
                   <p>Erros: {totalErrors}</p>
                 </div>

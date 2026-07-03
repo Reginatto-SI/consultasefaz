@@ -233,6 +233,26 @@ export function DetailDrawer({
             </CardContent>
           </Card>
 
+
+          {linha.maxysxml && (
+            <Card>
+              <CardHeader className="p-4 pb-2"><CardTitle className="text-base">MaxysXML</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-1 gap-3 p-4 pt-2 sm:grid-cols-2">
+                <DetailItem label="XML encontrado no MaxysXML" value={formatBoolean(linha.maxysxml.xml_existe_no_maxysxml)} />
+                <DetailItem label="Situação MaxysXML" value={linha.maxysxml.situacao_xml_maxys} />
+                <DetailItem label="Status XML" value={linha.maxysxml.status_xml_maxys ?? "—"} />
+                <DetailItem label="Status ERP MaxysXML" value={linha.maxysxml.status_erp_maxys ?? "—"} />
+                <DetailItem label="Status SEFAZ MaxysXML" value={linha.maxysxml.status_sefaz_maxys ?? "—"} />
+                <DetailItem label="Número do documento no MaxysXML" value={linha.maxysxml.registro_maxysxml_encontrado?.numero_nota_fiscal ?? "—"} />
+                <DetailItem label="Série no MaxysXML" value={linha.maxysxml.registro_maxysxml_encontrado?.serie_nota_fiscal ?? "—"} />
+                <DetailItem label="Emitente no MaxysXML" value={firstAvailable(linha.maxysxml.registro_maxysxml_encontrado?.emitente_razao_social, linha.maxysxml.registro_maxysxml_encontrado?.emitente_cnpj_cpf)} />
+                <Button type="button" variant="outline" className="sm:col-span-2" onClick={handleCopyChave}>
+                  <Copy className="mr-2 h-4 w-4" /> Copiar chave de acesso
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {excAtiva ? (
             <section className="border border-border rounded-lg p-4 bg-muted/30">
               <h3 className="font-semibold text-sm mb-2">Exceção ativa</h3>

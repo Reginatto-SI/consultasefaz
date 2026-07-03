@@ -5,9 +5,9 @@ import {
   normalizeIE,
   normalizeStatus,
 } from "@/lib/engine";
-import type { NotaSefaz, RegistroErp } from "@/lib/types";
+import type { NotaSefaz, RegistroErp, RegistroMaxysXML } from "@/lib/types";
 
-export type TipoImportacao = "SEFAZ" | "ERP";
+export type TipoImportacao = "SEFAZ" | "ERP" | "MAXYSXML";
 
 // PROTEÇÃO CONTRA TRAVAMENTO: limite seguro de tamanho para processamento local na V1.
 // Acima disso o navegador pode travar — bloqueamos antes de tentar ler o arquivo.
@@ -64,6 +64,7 @@ export interface ParseResult {
   tipo: TipoImportacao;
   notasSefaz?: Array<Omit<NotaSefaz, "id" | "importacao_id" | "empresa_id"> & { cnpj_destinatario: string }>;
   registrosErp?: Array<Omit<RegistroErp, "id" | "importacao_id">>;
+  registrosMaxysXML?: Array<Omit<RegistroMaxysXML, "id" | "importacao_id" | "arquivo_nome">>;
   errors: string[];
   warnings: string[];
   diagnostics?: Record<string, any>;
@@ -286,6 +287,95 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       total_estruturado: notas!.length,
       tempo_ms: Math.round(performance.now() - t0),
     };
+    result.ok = true;
+    return result;
+  }
+
+
+  if (tipo === "MAXYSXML") {
+    const normalizeHeaderMaxys = (h: string) => h
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const headerNorm = headers.map((h) => normalizeHeaderMaxys(h));
+    const findCol = (...names: string[]) => headerNorm.findIndex((h) => names.includes(h));
+    const chaveCol = findCol("chave de acesso", "chave acesso", "chave nfe", "chave nf e");
+    if (chaveCol < 0) {
+      result.errors.push("Relatório MaxysXML inválido: coluna 'Chave de Acesso' não encontrada.");
+      return result;
+    }
+    if (dataRows.length === 0) {
+      result.errors.push("Relatório MaxysXML vazio ou sem linhas válidas.");
+      return result;
+    }
+
+    const col = {
+      codigoEmpresa: findCol("cod empresa", "codigo empresa"),
+      empresa: findCol("empresa"),
+      numero: findCol("numero do doc", "numero documento", "numero do documento"),
+      serie: findCol("serie"),
+      totalIcms: findCol("total icms"),
+      tipoFaturamento: findCol("tp faturamento", "tipo faturamento"),
+      emitenteDoc: findCol("cnpj cpf", "cnpj", "cpf"),
+      emitente: findCol("emitente"),
+      dataEmissao: findCol("data da emissao", "data emissao"),
+      statusXml: findCol("status xml"),
+      statusErp: findCol("status erp"),
+      statusSefaz: findCol("status sefaz"),
+      tipoDestinatario: findCol("tipo de destinatario", "tipo destinatario"),
+    };
+    const opcionaisAusentes = Object.entries(col).filter(([, idx]) => idx < 0).map(([name]) => name);
+    if (opcionaisAusentes.length) result.warnings.push(`Colunas opcionais MaxysXML ausentes: ${opcionaisAusentes.join(", ")}.`);
+
+    const registros: ParseResult["registrosMaxysXML"] = [];
+    let semChave = 0;
+    let chaveInvalida = 0;
+    const chaves = new Map<string, number>();
+    const statusDesconhecido = new Set<string>();
+    const get = (r: any[], idx: number) => idx >= 0 ? r[idx] : undefined;
+    const text = (v: any) => v === undefined || v === null ? undefined : String(v).trim() || undefined;
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const r = dataRows[i];
+      if (i > 0 && i % YIELD_EVERY === 0) await yieldToUi();
+      const payload: Record<string, any> = {};
+      headers.forEach((h, idx) => { payload[h || `col_${idx}`] = r?.[idx] ?? null; });
+      const chave = normalizeChave(String(r?.[chaveCol] ?? ""));
+      if (!chave) { semChave++; continue; }
+      if (chave.length !== 44) { chaveInvalida++; if (chaveInvalida <= 5) result.warnings.push(`Linha MaxysXML com chave fora do padrão de 44 dígitos (${chave.length}).`); continue; }
+      const statusXml = text(get(r, col.statusXml));
+      if (statusXml) {
+        const normalized = statusXml.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        if (!["armazen", "dispon", "localiz", "baixad", "ok", "importad", "presente", "autorizad", "ausent", "erro", "falha", "pendente", "inexist", "rejeitad"].some((t) => normalized.includes(t))) statusDesconhecido.add(statusXml);
+      }
+      chaves.set(chave, (chaves.get(chave) ?? 0) + 1);
+      registros!.push({
+        chave_acesso: chave,
+        payload_completo_maxysxml: payload,
+        maxys_codigo_empresa: text(get(r, col.codigoEmpresa)),
+        maxys_empresa_nome: text(get(r, col.empresa)),
+        numero_nota_fiscal: text(get(r, col.numero)),
+        serie_nota_fiscal: text(get(r, col.serie)),
+        total_icms: get(r, col.totalIcms) ?? undefined,
+        tipo_faturamento: text(get(r, col.tipoFaturamento)),
+        emitente_cnpj_cpf: normalizeCnpj(String(get(r, col.emitenteDoc) ?? "")) || undefined,
+        emitente_razao_social: text(get(r, col.emitente)),
+        data_emissao: get(r, col.dataEmissao) ? parseDate(get(r, col.dataEmissao)) : undefined,
+        status_xml: statusXml,
+        status_erp_maxys: text(get(r, col.statusErp)),
+        status_sefaz_maxys: text(get(r, col.statusSefaz)),
+        tipo_destinatario_maxys: text(get(r, col.tipoDestinatario)),
+      });
+    }
+    if (semChave) result.warnings.push(`${semChave} linha(s) MaxysXML sem chave de acesso. Elas não participam da comparação.`);
+    for (const status of Array.from(statusDesconhecido).slice(0, 5)) result.warnings.push(`Status XML MaxysXML desconhecido: ${status}.`);
+    const duplicadas = [...chaves.entries()].filter(([, count]) => count > 1);
+    if (duplicadas.length) result.warnings.push(`${duplicadas.length} chave(s) duplicada(s) no MaxysXML. A comparação consolidou por chave.`);
+    if (!registros!.length) { result.errors.push("Nenhuma chave válida encontrada no relatório MaxysXML."); return result; }
+    result.registrosMaxysXML = registros;
+    result.diagnostics = { total_linhas_lidas: dataRows.length, total_registros_estruturados: registros.length, total_sem_chave: semChave, total_chave_tamanho_invalido: chaveInvalida, total_chaves_duplicadas: duplicadas.length, linha_cabecalho: headerRow, tempo_ms: Math.round(performance.now() - t0) };
     result.ok = true;
     return result;
   }

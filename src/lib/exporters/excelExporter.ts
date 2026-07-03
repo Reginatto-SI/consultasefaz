@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { DatasetLinha } from "@/lib/types";
+import type { DatasetLinha, ResultadoMaxysXMLPorNota } from "@/lib/types";
 import { IE_ISENTO_MARKER } from "@/lib/engine";
 import {
   ConferenciaStats,
@@ -85,4 +85,53 @@ export function exportarExcelConferencia(
 
   const filename = `relatorio-conferencia-sefaz-erp-${dataHojeISO()}.xlsx`;
   XLSX.writeFile(wb, filename);
+}
+
+export function exportarExcelMaxysXML(resultados: ResultadoMaxysXMLPorNota[], modo: string) {
+  const header = [
+    "destinatario_nome",
+    "destinatario_cnpj_cpf",
+    "data_emissao",
+    "numero_nota_fiscal",
+    "serie_nota_fiscal",
+    "chave_nfe",
+    "emitente_cnpj_cpf",
+    "emitente_razao_social",
+    "situacao_xml_maxys",
+    "status_xml_maxys",
+    "status_erp_maxys",
+    "status_sefaz_maxys",
+  ];
+  const body = resultados.map((item) => {
+    const linha = item.linha_conferencia;
+    const registro = item.registro_maxysxml_encontrado;
+    return [
+      linha ? getDestinatarioNome(linha) : "",
+      linha?.payload_completo_drawer?.destinatario_cnpj_cpf ?? "",
+      linha ? formatDataEmissao(linha) : formatDataMaxys(registro?.data_emissao),
+      registro?.numero_nota_fiscal ?? (linha ? getNumeroNota(linha) : ""),
+      registro?.serie_nota_fiscal ?? linha?.payload_completo_drawer?.serie_nota_fiscal ?? "",
+      item.chave_nfe,
+      registro?.emitente_cnpj_cpf ?? (linha ? getEmitenteDoc(linha) : ""),
+      registro?.emitente_razao_social ?? (linha ? getEmitenteNome(linha) : ""),
+      item.situacao_xml_maxys,
+      item.status_xml_maxys ?? "",
+      item.status_erp_maxys ?? "",
+      item.status_sefaz_maxys ?? "",
+    ];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+  ws["!cols"] = [
+    { wch: 32 }, { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 46 },
+    { wch: 18 }, { wch: 36 }, { wch: 28 }, { wch: 18 }, { wch: 22 }, { wch: 22 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "XMLs MaxysXML");
+  XLSX.writeFile(wb, `relatorio-maxysxml-${modo}-${dataHojeISO()}.xlsx`);
+}
+
+function formatDataMaxys(value?: string) {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("pt-BR");
 }
