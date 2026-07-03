@@ -69,6 +69,39 @@ Regra obrigatória: qualquer novo PRD, análise ou implementação deve respeita
 - Status interno: indicador técnico não público usado pelo processamento, quando documentado no PRD 05.
 - Status interno não deve ser tratado como filtro, KPI, badge público ou exportação operacional padrão.
 
+
+### 4.11 Nota existente na SEFAZ
+- Nota existente na SEFAZ é toda nota fiscal presente no relatório SEFAZ importado e estruturada no snapshot atual.
+- É o conceito que define o universo principal de notas do ConsultaSefaz.
+- Sua existência não depende de a nota estar lançada/escriturada no ERP.
+- Sua existência não depende de o XML estar encontrado/armazenado no MaxysXML/MasterXML.
+
+### 4.12 Nota lançada/escriturada no ERP
+- Nota lançada/escriturada no ERP é uma nota SEFAZ cuja chave foi encontrada e confirmada no RFT006/ERP conforme as regras do PRD 05.
+- É uma confirmação complementar de escrituração/lançamento no ERP, não uma prova de armazenamento de XML.
+- Nota lançada/escriturada no ERP não significa XML encontrado no MaxysXML/MasterXML.
+- RFT006/ERP nunca deve ser usado para comprovar localização, download, importação ou armazenamento de XML.
+
+### 4.13 XML encontrado no MaxysXML/MasterXML
+- XML encontrado no MaxysXML/MasterXML é o indicador auxiliar de que a chave de uma nota SEFAZ foi localizada no relatório MaxysXML/MasterXML importado.
+- É uma confirmação complementar de localização/armazenamento de XML, não uma prova de escrituração/lançamento no ERP.
+- XML encontrado no MaxysXML/MasterXML não significa nota lançada/escriturada no ERP.
+- MaxysXML/MasterXML nunca deve ser usado para comprovar escrituração/lançamento no ERP.
+
+### 4.14 XML pendente no MaxysXML/MasterXML
+- XML pendente no MaxysXML/MasterXML é o indicador auxiliar de que a chave de uma nota SEFAZ não foi localizada no relatório MaxysXML/MasterXML importado, ou requer verificação de armazenamento conforme PRD 10.
+- XML pendente no MaxysXML/MasterXML não significa nota faltante no ERP.
+- Nota faltante no ERP não significa XML pendente no MaxysXML/MasterXML.
+- Este conceito não altera `status_final`, `resultado_matching` ou `motivo_divergencia`.
+
+### 4.15 Independência conceitual obrigatória
+- SEFAZ, RFT006/ERP e MaxysXML/MasterXML respondem perguntas diferentes e independentes.
+- SEFAZ responde quais notas existem no universo principal.
+- RFT006/ERP responde se a nota SEFAZ foi lançada/escriturada no ERP.
+- MaxysXML/MasterXML responde se o XML da nota SEFAZ está localizado/armazenado no MaxysXML/MasterXML.
+- A presença em uma fonte complementar não presume presença na outra fonte complementar.
+- MaxysXML/MasterXML gera apenas indicadores auxiliares de XML e nunca altera a classificação oficial da conferência SEFAZ x RFT006/ERP.
+
 ## 5. Regras obrigatórias de nomenclatura
 
 ### 5.1 UI
@@ -103,6 +136,7 @@ Regra obrigatória: qualquer novo PRD, análise ou implementação deve respeita
 - SEFAZ define o destinatário; ERP nunca define.
 - Nenhuma regra de autenticação, usuário, permissão ou tenant deve depender de `empresa_id`.
 - Mudanças de nomenclatura não podem alterar matching, classificação, exceções ou layout sem consultar os PRDs responsáveis.
+- Não confundir nota existente na SEFAZ, nota lançada/escriturada no ERP e XML encontrado/pendente no MaxysXML/MasterXML; são conceitos independentes.
 
 ## 8. Destinatário conhecido local (V1)
 
