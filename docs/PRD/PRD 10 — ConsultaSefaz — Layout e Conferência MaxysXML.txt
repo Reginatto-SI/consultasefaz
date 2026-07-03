@@ -1,4 +1,4 @@
-# PRD 10 — ConsultaSefaz — Layout e Conferência MaxysXML
+# PRD 10 — ConsultaSefaz — Layout e Análise auxiliar MaxysXML/MasterXML
 
 ## 1. Objetivo
 
@@ -30,10 +30,10 @@ Este PRD não substitui:
 ## 3. Princípios obrigatórios
 
 - SEFAZ continua sendo a fonte de verdade do universo de notas.
-- MaxysXML é fonte complementar.
+- MaxysXML/MasterXML é fonte complementar de localização/armazenamento de XML.
 - MaxysXML não cria nota principal no sistema.
 - MaxysXML não define destinatário fiscal.
-- MaxysXML não altera o status principal da conferência SEFAZ x RFT006.
+- MaxysXML/MasterXML não altera o status principal da conferência SEFAZ x RFT006, `resultado_matching` ou `motivo_divergencia`.
 - A comparação MaxysXML deve ocorrer somente por chave de acesso normalizada.
 - O resultado MaxysXML deve ser exibido como indicador auxiliar, nunca como status público principal.
 - O processamento deve ser determinístico.
@@ -102,7 +102,7 @@ Observação:
 
 - O layout pode ter colunas adicionais.
 - Colunas adicionais devem ser preservadas em payload completo.
-- A única coluna obrigatória para a conferência MaxysXML é `Chave de Acesso`.
+- A única coluna obrigatória para a análise auxiliar de XML é `Chave de Acesso`.
 
 ## 7. Campo obrigatório absoluto
 
@@ -210,7 +210,7 @@ Regra obrigatória:
 
 ## 13. Resultado auxiliar MaxysXML
 
-A conferência MaxysXML deve gerar campos auxiliares no dataset final ou em dataset complementar vinculado à chave SEFAZ.
+A análise auxiliar MaxysXML/MasterXML deve gerar campos auxiliares no dataset final ou em dataset complementar vinculado à chave SEFAZ.
 
 Campos sugeridos por nota:
 
@@ -288,7 +288,39 @@ Rótulo sugerido na UI:
 
 - `MaxysXML não importado`
 
-## 15. Relação com status principal da conferência
+
+## 15. Independência entre escrituração e XML
+
+A análise MaxysXML/MasterXML é independente da conferência de escrituração no ERP. Ela não participa da matriz oficial do PRD 05 e não transforma indicador auxiliar de XML em status principal.
+
+Regras obrigatórias:
+
+- Nota lançada no ERP não significa XML encontrado no MaxysXML/MasterXML.
+- XML encontrado no MaxysXML/MasterXML não significa nota lançada no ERP.
+- XML pendente no MaxysXML/MasterXML não significa nota faltante no ERP.
+- Nota faltante no ERP não significa XML pendente no MaxysXML/MasterXML.
+- RFT006/ERP nunca deve ser usado para comprovar armazenamento de XML.
+- MaxysXML/MasterXML nunca deve ser usado para comprovar escrituração/lançamento no ERP.
+- MaxysXML/MasterXML nunca altera `status_final`, `resultado_matching` ou `motivo_divergencia`.
+- MaxysXML/MasterXML gera apenas indicadores auxiliares de XML.
+
+Exemplos obrigatórios:
+
+| Status principal SEFAZ x RFT006 | Situação MaxysXML | Interpretação correta |
+|---|---|---|
+| OK | XML_PRESENTE | Nota lançada/escriturada no ERP e XML localizado. |
+| OK | XML_PENDENTE_MAXYS | Nota lançada/escriturada no ERP, mas XML não localizado. |
+| FALTANTE | XML_PRESENTE | XML localizado, mas nota não lançada/escriturada no ERP. |
+| FALTANTE | XML_PENDENTE_MAXYS | Nota não lançada/escriturada no ERP e XML não localizado. |
+
+Finalidade operacional nesta fase:
+
+- Gerar lista de XMLs encontrados, pendentes ou para verificar armazenamento.
+- Apoiar a equipe de TI na baixa e subida manual de XMLs para a nuvem/sistema.
+- Não transformar XML pendente em status principal.
+- Não transformar XML encontrado em nota lançada/escriturada.
+
+## 16. Relação com status principal da conferência
 
 A situação MaxysXML não altera `status_final`.
 
@@ -307,9 +339,10 @@ Regra obrigatória:
 
 - Não criar status público `XML PENDENTE`.
 - Não substituir `FALTANTE` por situação MaxysXML.
+- Não interpretar `FALTANTE` como XML pendente; `FALTANTE` significa ausência no RFT006/ERP conforme PRD 05.
 - Não alterar a matriz do PRD 05.
 
-## 16. Importação no wizard
+## 17. Importação no wizard
 
 O modal de importação deve evoluir para quatro etapas:
 
@@ -335,7 +368,7 @@ A etapa MaxysXML deve ter ação clara para pular:
 - `Pular MaxysXML`
 - `Conferir sem MaxysXML`
 
-## 17. Interface de resultado
+## 18. Interface de resultado
 
 A UI deve exibir a análise MaxysXML em área separada da conferência principal.
 
@@ -377,7 +410,7 @@ Filtros mínimos:
 - Busca por chave
 - Emitente
 
-## 18. Drawer da nota
+## 19. Drawer da nota
 
 Quando houver análise MaxysXML, o drawer da nota deve exibir bloco separado:
 
@@ -400,7 +433,7 @@ Regra obrigatória:
 - O bloco MaxysXML deve ser informativo.
 - O bloco MaxysXML não deve alterar o status principal da nota.
 
-## 19. Exportação operacional
+## 20. Exportação operacional
 
 A aba `XMLs MaxysXML` deve permitir exportar:
 
@@ -429,7 +462,7 @@ Campos mínimos da exportação:
 - status_erp_maxys
 - status_sefaz_maxys
 
-## 20. Logs operacionais
+## 21. Logs operacionais
 
 A importação MaxysXML deve gerar logs conforme PRD 06.
 
@@ -451,7 +484,7 @@ Avisos:
 
 Mensagens devem ser claras e acionáveis.
 
-## 21. Duplicidade de chaves no MaxysXML
+## 22. Duplicidade de chaves no MaxysXML
 
 Se houver mais de uma linha MaxysXML para a mesma chave:
 
@@ -467,7 +500,7 @@ Quando houver múltiplos `status_xml` para a mesma chave, usar a regra mais cons
 2. Se nenhum registro indicar armazenado/disponível, considerar `XML_PRESENTE_NAO_ARMAZENADO`.
 3. Registrar aviso de duplicidade para conferência operacional.
 
-## 22. Snapshot MaxysXML
+## 23. Snapshot MaxysXML
 
 A importação MaxysXML deve substituir integralmente a base MaxysXML vigente no estado local.
 
@@ -480,7 +513,7 @@ Regras:
 - MaxysXML não remove registros RFT006;
 - MaxysXML não altera exceções.
 
-## 23. Persistência local
+## 24. Persistência local
 
 Na V1:
 
@@ -491,7 +524,7 @@ Na V1:
 - não há banco de dados;
 - não há auditoria por usuário.
 
-## 24. Performance
+## 25. Performance
 
 A comparação deve ser feita com indexação por chave.
 
@@ -504,9 +537,9 @@ Regra recomendada:
 
 Evitar laços quadráticos entre SEFAZ e MaxysXML.
 
-## 25. Critérios de aceite
+## 26. Critérios de aceite
 
-### 25.1 Importação
+### 26.1 Importação
 
 - O usuário consegue importar SEFAZ, RFT006 e opcionalmente MaxysXML.
 - O usuário consegue pular a etapa MaxysXML.
@@ -514,7 +547,7 @@ Evitar laços quadráticos entre SEFAZ e MaxysXML.
 - Arquivo MaxysXML com colunas opcionais ausentes não bloqueia a importação.
 - Chaves inválidas geram aviso e não quebram o processamento.
 
-### 25.2 Comparação
+### 26.2 Comparação
 
 - Chave existente na SEFAZ e no MaxysXML gera `XML_PRESENTE`.
 - Chave existente na SEFAZ e ausente no MaxysXML gera `XML_PENDENTE_MAXYS`.
@@ -522,7 +555,7 @@ Evitar laços quadráticos entre SEFAZ e MaxysXML.
 - Duplicidade de chave MaxysXML não duplica nota SEFAZ na tabela.
 - Resultado não depende da ordem das linhas do arquivo.
 
-### 25.3 UI
+### 26.3 UI
 
 - A conferência principal continua mostrando apenas status oficiais.
 - A análise MaxysXML aparece em aba, card ou bloco separado.
@@ -530,14 +563,14 @@ Evitar laços quadráticos entre SEFAZ e MaxysXML.
 - A tabela permite copiar chave de acesso.
 - A lista de XMLs pendentes pode ser exportada.
 
-### 25.4 Não regressão
+### 26.4 Não regressão
 
 - O matching SEFAZ x RFT006 continua inalterado.
 - O status `FALTANTE` continua significando ausência no RFT006 conforme PRD 05.
 - Exceções continuam tendo prioridade sobre a classificação principal.
 - A ausência do relatório MaxysXML não impede a conferência normal.
 
-## 26. Fora de escopo
+## 27. Fora de escopo
 
 - Baixar XML automaticamente.
 - Integrar com e-mail.
@@ -549,7 +582,7 @@ Evitar laços quadráticos entre SEFAZ e MaxysXML.
 - Criar backend ou banco na V1.
 - Usar IA ou heurística para localizar notas.
 
-## 27. Impacto esperado nos PRDs existentes
+## 28. Impacto esperado nos PRDs existentes
 
 ### PRD 02 — Importação de Arquivos
 
@@ -592,7 +625,7 @@ Se necessário, adicionar apenas observação:
 
 - A análise MaxysXML é auxiliar e não altera `status_final`, `resultado_matching` ou `motivo_divergencia`.
 
-## 28. Decisão funcional
+## 29. Decisão funcional
 
 A melhoria deve ser implementada como análise complementar.
 
@@ -601,9 +634,9 @@ O ConsultaSefaz passa a responder duas perguntas operacionais distintas:
 1. **Conferência ERP/RFT006**
    - Quais notas da SEFAZ estão ou não escrituradas no ERP?
 
-2. **Conferência MaxysXML**
+2. **Análise auxiliar MaxysXML/MasterXML**
    - Quais notas da SEFAZ possuem ou não XML localizado no MaxysXML?
 
 A primeira pergunta continua definindo o status principal da conferência.
 
-A segunda pergunta gera apenas indicadores auxiliares e listas operacionais para ação do usuário.
+A segunda pergunta gera apenas indicadores auxiliares e listas operacionais para ação do usuário, especialmente para que a equipe de TI baixe/suba XMLs manualmente para a nuvem/sistema quando necessário.

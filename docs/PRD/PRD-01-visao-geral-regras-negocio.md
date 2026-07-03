@@ -16,6 +16,7 @@ Este PRD não substitui contratos técnicos completos nem repete algoritmo do mo
 ## 3. Princípios obrigatórios (V1)
 - SEFAZ é a fonte de verdade do universo de notas.
 - ERP/RFT006 apenas confirma escrituração conforme PRD 05.
+- MaxysXML/MasterXML apenas indica localização/armazenamento de XML conforme PRD 10.
 - Sistema multidestinatário desde o início.
 - Destinatário da nota é definido pela SEFAZ.
 - ERP não define destinatário.
@@ -65,7 +66,26 @@ Regras obrigatórias:
 - `IGNORADA` **não** entra em exportação operacional padrão.
 - Caso seja necessário auditar `IGNORADA`, a auditoria deve ser técnica/curta e explicitamente documentada no PRD 05/PRD 06.
 
-## 7. Regras macro de alto nível
+
+## 7. Hierarquia das fontes de relatório
+A hierarquia conceitual das fontes da V1 é obrigatória:
+
+1. **SEFAZ** é a única fonte de verdade do universo principal de notas. Somente a SEFAZ responde quais notas existem para conferência no ConsultaSefaz.
+2. **RFT006/ERP** é relatório complementar de escrituração. Ele responde quais notas existentes na SEFAZ foram lançadas/escrituradas no ERP, conforme o motor oficial do PRD 05.
+3. **MaxysXML/MasterXML** é relatório complementar de XML. Ele responde quais XMLs das notas existentes na SEFAZ estão localizados/armazenados no MaxysXML/MasterXML, conforme PRD 10.
+
+Regras obrigatórias:
+
+- Somente a SEFAZ define o universo principal de notas.
+- RFT006/ERP não cria nota no universo principal e não comprova XML encontrado.
+- MaxysXML/MasterXML não cria nota no universo principal e não comprova escrituração/lançamento no ERP.
+- Nota lançada no ERP não significa XML encontrado.
+- XML encontrado no MaxysXML/MasterXML não significa nota lançada no ERP.
+- XML pendente no MaxysXML/MasterXML não significa nota faltante no ERP.
+- Nota faltante no ERP não significa XML pendente no MaxysXML/MasterXML.
+- MaxysXML/MasterXML gera apenas indicadores auxiliares de XML e nunca altera status público principal, `resultado_matching` ou `motivo_divergencia`.
+
+## 8. Regras macro de alto nível
 1. Importar arquivos conforme PRD 02, PRD 08 e PRD 09.
 2. Montar contratos estruturais e snapshot conforme PRD 07.
 3. Rodar motor de conferência conforme PRD 05.
@@ -73,12 +93,12 @@ Regras obrigatórias:
 5. Exibir resultado conforme PRD 03.
 6. Registrar erros/avisos conforme PRD 06.
 
-## 8. Multidestinatário
+## 9. Multidestinatário
 - A V1 processa múltiplos destinatários fiscais no mesmo ambiente local.
 - `empresa_id` é legado técnico/local para destinatário fiscal, conforme PRD 00.
 - Visualização por destinatário e consolidada faz parte da operação V1.
 
-## 9. Conexão com os demais PRDs
+## 10. Conexão com os demais PRDs
 - PRD 00: semântica e nomenclatura.
 - PRD 02: importação, parsing e snapshot de entrada.
 - PRD 03: experiência operacional e comportamento visual.
@@ -89,25 +109,25 @@ Regras obrigatórias:
 - PRD 08: layout SEFAZ.
 - PRD 09: layout RFT006/ERP.
 
-## 10. Evoluções futuras
+## 11. Evoluções futuras
 - Histórico completo de execuções.
 - Integrações externas.
 - Auditoria avançada.
 - Regras fiscais complementares.
 - Backend/banco/autenticação, se uma evolução futura justificar.
 
-## 11. Escopo técnico explícito da V1
+## 12. Escopo técnico explícito da V1
 - Sistema client-side executado no navegador.
 - Sem backend, banco de dados, autenticação e persistência corporativa em servidor.
 - Exportação é o mecanismo principal para guardar resultado operacional fora do navegador.
 - Histórico completo permanece fora de escopo na V1.
 
-## 12. Destinatários e exceções no escopo local da V1
+## 13. Destinatários e exceções no escopo local da V1
 - Destinatários são derivados dos arquivos SEFAZ importados.
 - Exceções são regras locais por destinatário + chave, conforme PRD 04.
 - Exportação/importação de exceções funciona como backup manual e reutilização em outro ambiente local.
 
-## 13. Enriquecimento por destinatário conhecido local (V1)
+## 14. Enriquecimento por destinatário conhecido local (V1)
 - SEFAZ continua definindo o destinatário da nota pelo `destinatario_cnpj_cpf`.
 - Cadastro local conhecido apenas melhora exibição operacional.
 - Apelido não altera matching, classificação ou exceções.

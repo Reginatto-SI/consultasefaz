@@ -1,7 +1,7 @@
 # PRD 05 — ConsultaSefaz — Motor de Conferência
 
 ## 1. Objetivo
-Definir a fonte oficial do algoritmo determinístico de conferência entre base SEFAZ, base RFT006/ERP e exceções.
+Definir a fonte oficial do algoritmo determinístico de conferência principal entre base SEFAZ, base RFT006/ERP e exceções.
 
 ## 2. Fonte de verdade deste PRD
 Este documento é a fonte única para:
@@ -17,6 +17,8 @@ Este documento é a fonte única para:
 Contratos estruturais de entrada/saída pertencem ao PRD 07. Layout bruto de origem pertence ao PRD 08/PRD 09. Exceções pertencem ao PRD 04, mas sua aplicação no algoritmo é definida aqui.
 
 ## 3. Entradas do motor
+O motor principal usa exclusivamente SEFAZ x RFT006/ERP, além de exceções aplicáveis. MaxysXML/MasterXML não é entrada da matriz oficial de classificação.
+
 O motor deve consumir somente dados estruturados entregues pela importação/pipeline:
 
 - notas SEFAZ estruturadas;
@@ -126,6 +128,8 @@ Restrições obrigatórias:
 | Status SEFAZ válido e `resultado_matching = CHAVE_NAO_ENCONTRADA` | `FALTANTE` |
 
 Observações obrigatórias:
+- `FALTANTE` significa ausência da nota SEFAZ no RFT006/ERP conforme as regras de matching deste PRD; não significa ausência, pendência, download ou armazenamento de XML.
+- MaxysXML/MasterXML não participa desta matriz oficial de classificação e não altera `status_final`, `resultado_matching` ou `motivo_divergencia`.
 - Não criar status final público `DIVERGENTE` na V1.
 - Problemas de IE são classificados como `IRREGULAR` quando a nota deve aparecer na visão operacional.
 - Linha RFT006 com chave existente e IE ausente não deve ser tratada como chave inexistente; portanto não deve gerar `FALTANTE` por ausência de chave.
@@ -160,7 +164,7 @@ Regras obrigatórias:
 - Após criação, inativação, reversão ou importação de exceções.
 
 ## 12. Saída
-O motor produz dataset final por nota, contendo status público quando aplicável, indicadores de matching, motivo operacional e payloads/identificadores necessários à UI.
+O motor produz dataset final por nota, contendo status público quando aplicável, indicadores de matching, motivo operacional e payloads/identificadores necessários à UI. Indicadores MaxysXML/MasterXML, quando existirem, são auxiliares e externos à classificação principal.
 
 O contrato estrutural da saída pertence ao PRD 07.
 
