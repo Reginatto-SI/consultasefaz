@@ -24,6 +24,34 @@ function pickRegistroPreferencial(registros: RegistroMaxysXML[]) {
   return registros.find((registro) => classificarStatusXmlMaxys(registro.status_xml) === "PRESENTE") ?? registros[0];
 }
 
+export function contarChavesMaxysValidas(registros: RegistroMaxysXML[]) {
+  const chaves = new Set<string>();
+  let registrosValidos = 0;
+
+  for (const registro of registros) {
+    const chave = normalizeChave(registro.chave_acesso);
+    if (!chave || chave.length !== 44) continue;
+    registrosValidos++;
+    chaves.add(chave);
+  }
+
+  return { registrosValidos, chavesUnicasValidas: chaves.size };
+}
+
+function indexarMaxysPorChave(registros: RegistroMaxysXML[]) {
+  const maxysByChave = new Map<string, RegistroMaxysXML[]>();
+
+  for (const registro of registros) {
+    const chave = normalizeChave(registro.chave_acesso);
+    if (!chave || chave.length !== 44) continue;
+    const atuais = maxysByChave.get(chave) ?? [];
+    atuais.push(registro);
+    maxysByChave.set(chave, atuais);
+  }
+
+  return maxysByChave;
+}
+
 function toPayload(registros: RegistroMaxysXML[]) {
   return registros.map((registro) => ({
     ...registro.payload_completo_maxysxml,
@@ -37,22 +65,14 @@ function toPayload(registros: RegistroMaxysXML[]) {
 export function analisarMaxysXML(dataset: DatasetLinha[], registros: RegistroMaxysXML[]): ResultadoMaxysXMLPorNota[] {
   if (!registros.length) return [];
 
-  const maxysByChave = new Map<string, RegistroMaxysXML[]>();
-  for (const registro of registros) {
-    const chave = normalizeChave(registro.chave_acesso);
-    if (!chave || chave.length !== 44) continue;
-    const atuais = maxysByChave.get(chave) ?? [];
-    atuais.push(registro);
-    maxysByChave.set(chave, atuais);
-  }
+  const maxysByChave = indexarMaxysPorChave(registros);
 
   const chavesSefaz = new Set<string>();
   const resultados: ResultadoMaxysXMLPorNota[] = dataset.map((linha) => {
     const chave = normalizeChave(linha.chave_nfe);
     chavesSefaz.add(chave);
-    const encontrados = maxysByChave.get(chave) ?? [];
-
-    if (!encontrados.length) {
+    // Regra MaxysXML: só existe XML encontrado quando a chave normalizada da SEFAZ está no índice MaxysXML.
+    if (!maxysByChave.has(chave)) {
       return {
         chave_nfe: chave,
         xml_existe_no_maxysxml: false,
@@ -62,6 +82,7 @@ export function analisarMaxysXML(dataset: DatasetLinha[], registros: RegistroMax
       };
     }
 
+    const encontrados = maxysByChave.get(chave)!;
     const preferencial = pickRegistroPreferencial(encontrados);
     const algumPresente = encontrados.some((registro) => classificarStatusXmlMaxys(registro.status_xml) === "PRESENTE");
     const algumNaoArmazenado = encontrados.some((registro) => classificarStatusXmlMaxys(registro.status_xml) === "NAO_ARMAZENADO");

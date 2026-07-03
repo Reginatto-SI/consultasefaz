@@ -11,7 +11,7 @@ import type {
   ResultadoMaxysXMLPorNota,
 } from "@/lib/types";
 import { rodarMotor, normalizeChave, normalizeCnpj } from "@/lib/engine";
-import { analisarMaxysXML } from "@/lib/maxysxml";
+import { analisarMaxysXML, contarChavesMaxysValidas } from "@/lib/maxysxml";
 import { findDestinatarioConhecidoByDocumento } from "@/config/destinatariosConhecidos";
 import { clearAnalysisSnapshot, loadAnalysisSnapshot, saveAnalysisSnapshot } from "@/lib/analysisStorage";
 
@@ -221,7 +221,16 @@ export const useStore = create<State>()(
 
       ingestMaxysXML: (rows, importacao_id, arquivo) => {
         const novos: RegistroMaxysXML[] = rows.map((r) => ({ ...r, id: uid(), importacao_id, arquivo_nome: arquivo || "MaxysXML" }));
-        set({ maxysxml: novos, analysisSnapshotRestored: false });
+        const contagemMaxys = contarChavesMaxysValidas(novos);
+        // Importação MaxysXML sempre substitui integralmente o snapshot anterior; não mescla relatórios antigos.
+        set({ maxysxml: novos, maxysxmlAnalise: [], analysisSnapshotRestored: false });
+        get().addLog({
+          tipo: "importacao",
+          nivel: "aviso",
+          arquivo_nome: arquivo,
+          codigo_evento: "MAXYSXML_SNAPSHOT",
+          mensagem_usuario: `MaxysXML importado com ${contagemMaxys.registrosValidos} registros válidos e ${contagemMaxys.chavesUnicasValidas} chaves únicas.`,
+        });
         const duplicadas = new Map<string, number>();
         for (const registro of novos) duplicadas.set(registro.chave_acesso, (duplicadas.get(registro.chave_acesso) ?? 0) + 1);
         const totalDuplicadas = [...duplicadas.values()].filter((count) => count > 1).length;
@@ -235,6 +244,17 @@ export const useStore = create<State>()(
           });
         }
         get().rerun();
+        const encontrados = get().maxysxmlAnalise.filter((item) => item.situacao_xml_maxys === "XML_PRESENTE").length;
+        if (encontrados > contagemMaxys.chavesUnicasValidas) {
+          get().addLog({
+            tipo: "processamento",
+            nivel: "aviso",
+            arquivo_nome: arquivo,
+            codigo_evento: "MAXYSXML_INCONSISTENCIA_CONTAGEM",
+            mensagem_usuario: "Inconsistência na análise MaxysXML: XMLs encontrados excedem chaves únicas importadas.",
+            contexto_resumido: `encontrados=${encontrados}; chaves_unicas=${contagemMaxys.chavesUnicasValidas}`,
+          });
+        }
         const foraSefaz = get().maxysxmlAnalise.filter((item) => item.situacao_xml_maxys === "XML_FORA_DA_SEFAZ_ATUAL").length;
         if (foraSefaz > 0) {
           get().addLog({
