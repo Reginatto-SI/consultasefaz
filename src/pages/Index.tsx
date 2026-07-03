@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Ban, Building2, ChevronLeft, ChevronRight, ClipboardList, FileDown, FileSpreadsheet, ShieldCheck, Trash2, Upload } from "lucide-react";
 import type { DatasetLinha, StatusFinal } from "@/lib/types";
 import { ConferenciaView } from "@/pages/views/ConferenciaView";
-import type { SortDirection, SortKey, SortState } from "@/pages/views/ConferenciaView";
+import type { SituacaoXmlFiltro, SortDirection, SortKey, SortState } from "@/pages/views/ConferenciaView";
 import { DestinatariosView } from "@/pages/views/DestinatariosView";
 import { ExcecoesView } from "@/pages/views/ExcecoesView";
 import { LogsView } from "@/pages/views/LogsView";
@@ -77,6 +77,7 @@ const Index = () => {
    */
   const [empresaId, setEmpresaId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
+  const [situacaoXml, setSituacaoXml] = useState<SituacaoXmlFiltro>("all");
   const [chave, setChave] = useState("");
   const [dataIni, setDataIni] = useState("");
   const [dataFim, setDataFim] = useState("");
@@ -91,11 +92,13 @@ const Index = () => {
     return dataset.filter((l) => {
       if (empresaId !== "all" && l.empresa_id !== empresaId) return false;
       if (chave && !l.chave_nfe.includes(chave.replace(/\D/g, ""))) return false;
+      // Filtro complementar do MaxysXML: não altera status_final nem o motor SEFAZ x RFT006.
+      if (situacaoXml !== "all" && getSituacaoXmlFiltro(l) !== situacaoXml) return false;
       if (dataIni && new Date(l.data_emissao) < new Date(dataIni)) return false;
       if (dataFim && new Date(l.data_emissao) > new Date(dataFim + "T23:59:59")) return false;
       return true;
     });
-  }, [dataset, empresaId, chave, dataIni, dataFim]);
+  }, [dataset, empresaId, chave, situacaoXml, dataIni, dataFim]);
 
   const filtered = useMemo(() => {
     if (status === "all") return filteredWithoutStatus;
@@ -107,11 +110,12 @@ const Index = () => {
     return dataset.filter((l) => {
       if (status !== "all" && l.status_final !== status) return false;
       if (chave && !l.chave_nfe.includes(chave.replace(/\D/g, ""))) return false;
+      if (situacaoXml !== "all" && getSituacaoXmlFiltro(l) !== situacaoXml) return false;
       if (dataIni && new Date(l.data_emissao) < new Date(dataIni)) return false;
       if (dataFim && new Date(l.data_emissao) > new Date(dataFim + "T23:59:59")) return false;
       return true;
     });
-  }, [dataset, status, chave, dataIni, dataFim]);
+  }, [dataset, status, chave, situacaoXml, dataIni, dataFim]);
 
   const destinatarioCounts = useMemo(() => {
     return filteredWithoutDestinatario.reduce<Record<string, number>>((acc, linha) => {
@@ -141,7 +145,7 @@ const Index = () => {
   const pageData = sortedFiltered.slice((page - 1) * pageSize, page * pageSize);
   useEffect(() => {
     setPage(1);
-  }, [empresaId, status, chave, dataIni, dataFim, sort]);
+  }, [empresaId, status, situacaoXml, chave, dataIni, dataFim, sort]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -163,6 +167,7 @@ const Index = () => {
     setEmpresaId("all");
     setStatus("all");
     setChave("");
+    setSituacaoXml("all");
     setDataIni("");
     setDataFim("");
   };
@@ -328,6 +333,8 @@ const Index = () => {
                 destinatarioTotalCount={filteredWithoutDestinatario.length}
                 status={status}
                 setStatus={setStatus}
+                situacaoXml={situacaoXml}
+                setSituacaoXml={setSituacaoXml}
                 dataIni={dataIni}
                 setDataIni={setDataIni}
                 dataFim={dataFim}
@@ -388,6 +395,10 @@ const Index = () => {
     </div>
   );
 };
+
+function getSituacaoXmlFiltro(linha: DatasetLinha): SituacaoXmlFiltro {
+  return linha.maxysxml?.situacao_xml_maxys ?? "NAO_ANALISADO";
+}
 
 function compareConferenciaRows(a: DatasetLinha, b: DatasetLinha, key: SortKey, direction: SortDirection) {
   const modifier = direction === "asc" ? 1 : -1;

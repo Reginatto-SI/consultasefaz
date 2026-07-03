@@ -6,6 +6,7 @@ import {
   normalizeStatus,
 } from "@/lib/engine";
 import type { NotaSefaz, RegistroErp, RegistroMaxysXML } from "@/lib/types";
+import { contarChavesMaxysValidas } from "@/lib/maxysxml";
 
 export type TipoImportacao = "SEFAZ" | "ERP" | "MAXYSXML";
 
@@ -127,7 +128,8 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
       return result;
     }
 
-    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null }) as any[][];
+    // MaxysXML/MasterXML precisa do texto formatado para preservar chaves NF-e longas; SEFAZ/RFT006 mantêm a leitura bruta anterior.
+    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: tipo !== "MAXYSXML" }) as any[][];
   } catch (e: any) {
     result.errors.push(e?.message || "Não foi possível ler o arquivo Excel.");
     result.diagnostics = {
@@ -374,8 +376,9 @@ export async function parseFile(file: File, tipo: TipoImportacao): Promise<Parse
     const duplicadas = [...chaves.entries()].filter(([, count]) => count > 1);
     if (duplicadas.length) result.warnings.push(`${duplicadas.length} chave(s) duplicada(s) no MaxysXML. A comparação consolidou por chave.`);
     if (!registros!.length) { result.errors.push("Nenhuma chave válida encontrada no relatório MaxysXML."); return result; }
+    const contagemMaxys = contarChavesMaxysValidas(registros as RegistroMaxysXML[]);
     result.registrosMaxysXML = registros;
-    result.diagnostics = { total_linhas_lidas: dataRows.length, total_registros_estruturados: registros.length, total_sem_chave: semChave, total_chave_tamanho_invalido: chaveInvalida, total_chaves_duplicadas: duplicadas.length, linha_cabecalho: headerRow, tempo_ms: Math.round(performance.now() - t0) };
+    result.diagnostics = { total_linhas_lidas: dataRows.length, total_registros_estruturados: registros.length, total_chaves_unicas_validas: contagemMaxys.chavesUnicasValidas, total_sem_chave: semChave, total_chave_tamanho_invalido: chaveInvalida, total_chaves_duplicadas: duplicadas.length, linha_cabecalho: headerRow, tempo_ms: Math.round(performance.now() - t0) };
     result.ok = true;
     return result;
   }
