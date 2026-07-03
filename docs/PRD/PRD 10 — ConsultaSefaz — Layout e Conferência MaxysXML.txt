@@ -1,0 +1,609 @@
+# PRD 10 — ConsultaSefaz — Layout e Conferência MaxysXML
+
+## 1. Objetivo
+
+Definir a importação opcional do relatório exportado da plataforma MaxysXML e a conferência auxiliar entre as chaves da SEFAZ e as chaves existentes no MaxysXML.
+
+Esta evolução tem como objetivo identificar, a partir da fonte de verdade SEFAZ, quais XMLs ainda estão pendentes de localização, download, armazenamento ou importação na plataforma MaxysXML.
+
+## 2. Fonte de verdade deste PRD
+
+Este documento é a fonte de verdade para:
+
+- layout de entrada do relatório MaxysXML;
+- importação opcional do MaxysXML;
+- comparação SEFAZ x MaxysXML;
+- indicadores auxiliares de XML encontrado ou pendente;
+- exibição operacional de XMLs pendentes.
+
+Este PRD não substitui:
+
+- PRD 00 — Dicionário de Domínio;
+- PRD 01 — Regras Globais e status públicos;
+- PRD 02 — Importação geral de arquivos;
+- PRD 03 — Interface e experiência do usuário;
+- PRD 05 — Motor oficial de conferência SEFAZ x RFT006;
+- PRD 07 — Contrato de Dados e Pipeline Estrutural;
+- PRD 08 — Layout SEFAZ;
+- PRD 09 — Layout RFT006/ERP.
+
+## 3. Princípios obrigatórios
+
+- SEFAZ continua sendo a fonte de verdade do universo de notas.
+- MaxysXML é fonte complementar.
+- MaxysXML não cria nota principal no sistema.
+- MaxysXML não define destinatário fiscal.
+- MaxysXML não altera o status principal da conferência SEFAZ x RFT006.
+- A comparação MaxysXML deve ocorrer somente por chave de acesso normalizada.
+- O resultado MaxysXML deve ser exibido como indicador auxiliar, nunca como status público principal.
+- O processamento deve ser determinístico.
+- Não usar heurística, similaridade textual, razão social, CNPJ, IE ou número da nota para confirmar presença do XML.
+- O relatório MaxysXML é opcional.
+
+## 4. Escopo da V1
+
+Inclui:
+
+- importação opcional de relatório MaxysXML em `.xls` ou `.xlsx`;
+- parsing local do arquivo no navegador;
+- identificação da coluna de chave de acesso;
+- normalização das chaves;
+- comparação das chaves MaxysXML contra as chaves SEFAZ do snapshot atual;
+- geração de indicadores auxiliares por nota;
+- aba ou painel específico para XMLs MaxysXML;
+- exportação operacional da lista de XMLs pendentes;
+- logs de erro e aviso de importação MaxysXML.
+
+Não inclui:
+
+- integração automática com MaxysXML;
+- login na plataforma MaxysXML;
+- download automático de XML;
+- consulta automática à SEFAZ;
+- automação por e-mail;
+- backend, banco de dados ou persistência corporativa;
+- alteração da matriz oficial de status do PRD 05;
+- alteração do matching SEFAZ x RFT006;
+- leitura ou validação do conteúdo real dos XMLs.
+
+## 5. Formatos aceitos
+
+A importação MaxysXML deve aceitar:
+
+- `.xls`
+- `.xlsx`
+
+Arquivos em outros formatos devem gerar erro bloqueante de importação.
+
+## 6. Estrutura esperada do relatório MaxysXML
+
+O relatório MaxysXML esperado possui layout tabular com linha de cabeçalho e linhas de documentos fiscais.
+
+Campos observados no layout base:
+
+| Nome visível | Campo técnico sugerido | Uso |
+|---|---|---|
+| Cód. Empresa | maxys_codigo_empresa | Informativo |
+| Empresa | maxys_empresa_nome | Informativo |
+| Número do Doc. | numero_nota_fiscal | Exibição |
+| Série | serie_nota_fiscal | Exibição |
+| Chave de Acesso | chave_acesso | Campo principal de comparação |
+| Total ICMS | total_icms | Informativo |
+| Tp. Faturamento | tipo_faturamento | Filtro/diagnóstico |
+| CNPJ/CPF | emitente_cnpj_cpf | Exibição |
+| Emitente | emitente_razao_social | Exibição |
+| Data da emissão | data_emissao | Filtro/diagnóstico |
+| Status XML | status_xml | Indicador auxiliar |
+| Status ERP | status_erp_maxys | Informativo |
+| Status SEFAZ | status_sefaz_maxys | Informativo |
+| Tipo de Destinatário | tipo_destinatario_maxys | Filtro/diagnóstico |
+
+Observação:
+
+- O layout pode ter colunas adicionais.
+- Colunas adicionais devem ser preservadas em payload completo.
+- A única coluna obrigatória para a conferência MaxysXML é `Chave de Acesso`.
+
+## 7. Campo obrigatório absoluto
+
+Para o arquivo MaxysXML ser aceito, deve existir coluna mapeável para:
+
+- `chave_acesso`
+
+Se a coluna de chave de acesso não for encontrada, o arquivo deve ser bloqueado com erro operacional claro.
+
+## 8. Campos opcionais recomendados
+
+Quando existirem no arquivo, os seguintes campos devem ser capturados:
+
+- `numero_nota_fiscal`
+- `serie_nota_fiscal`
+- `data_emissao`
+- `status_xml`
+- `status_erp_maxys`
+- `status_sefaz_maxys`
+- `tipo_faturamento`
+- `tipo_destinatario_maxys`
+- `emitente_cnpj_cpf`
+- `emitente_razao_social`
+- `maxys_codigo_empresa`
+- `maxys_empresa_nome`
+- `total_icms`
+
+Ausência desses campos não deve bloquear a importação.
+
+## 9. Campos preservados em payload completo
+
+Todos os campos lidos do relatório MaxysXML devem ser preservados em:
+
+- `payload_completo_maxysxml`
+
+O payload deve manter:
+
+- nome original da coluna;
+- valor bruto;
+- valor normalizado quando aplicável;
+- metadados úteis de importação quando disponíveis.
+
+## 10. Normalização obrigatória
+
+A importação MaxysXML deve normalizar:
+
+- `chave_acesso`: remover espaços, máscara e caracteres não numéricos;
+- `cnpj_cpf`: remover máscara e espaços;
+- campos textuais: aplicar trim de borda;
+- datas: converter para formato interno consumível pelo pipeline;
+- valores monetários: converter para formato numérico quando possível.
+
+Chaves com tamanho diferente de 44 dígitos devem gerar aviso operacional e não devem participar da comparação principal.
+
+## 11. Entidade estrutural — RegistroMaxysXML
+
+A importação MaxysXML deve entregar ao pipeline a entidade local `RegistroMaxysXML`.
+
+Campos mínimos:
+
+- `id`
+- `chave_acesso`
+- `arquivo_nome`
+- `importacao_id`
+- `payload_completo_maxysxml`
+
+Campos opcionais:
+
+- `numero_nota_fiscal`
+- `serie_nota_fiscal`
+- `data_emissao`
+- `status_xml`
+- `status_erp_maxys`
+- `status_sefaz_maxys`
+- `tipo_faturamento`
+- `tipo_destinatario_maxys`
+- `emitente_cnpj_cpf`
+- `emitente_razao_social`
+- `maxys_codigo_empresa`
+- `maxys_empresa_nome`
+- `total_icms`
+
+## 12. Regra oficial de comparação SEFAZ x MaxysXML
+
+Para cada nota SEFAZ do snapshot atual:
+
+1. Obter `NotaSefaz.chave_nfe`.
+2. Normalizar a chave da SEFAZ.
+3. Buscar a mesma chave na base importada do MaxysXML.
+4. Se a chave existir no MaxysXML, marcar XML como encontrado.
+5. Se a chave não existir no MaxysXML, marcar XML como pendente.
+6. Se a chave existir no MaxysXML, mas `status_xml` indicar ausência, erro, não armazenado ou situação equivalente, marcar como verificar armazenamento.
+
+Regra obrigatória:
+
+- A comparação deve ser feita exclusivamente por chave de acesso normalizada.
+- Não usar número da nota.
+- Não usar série.
+- Não usar emitente.
+- Não usar destinatário.
+- Não usar CNPJ.
+- Não usar IE.
+- Não usar razão social.
+- Não usar similaridade textual.
+
+## 13. Resultado auxiliar MaxysXML
+
+A conferência MaxysXML deve gerar campos auxiliares no dataset final ou em dataset complementar vinculado à chave SEFAZ.
+
+Campos sugeridos por nota:
+
+- `chave_nfe`
+- `xml_existe_no_maxysxml`
+- `situacao_xml_maxys`
+- `status_xml_maxys`
+- `status_erp_maxys`
+- `status_sefaz_maxys`
+- `registro_maxysxml_encontrado`
+- `payload_maxysxml_drawer`
+
+Valores oficiais para `situacao_xml_maxys`:
+
+- `XML_PRESENTE`
+- `XML_PENDENTE_MAXYS`
+- `XML_PRESENTE_NAO_ARMAZENADO`
+- `XML_FORA_DA_SEFAZ_ATUAL`
+- `NAO_ANALISADO`
+
+## 14. Semântica dos resultados auxiliares
+
+### 14.1 XML_PRESENTE
+
+Usar quando:
+
+- a chave da SEFAZ existe no relatório MaxysXML;
+- não há indicação de ausência ou problema no campo `status_xml`.
+
+Rótulo sugerido na UI:
+
+- `XML encontrado`
+
+### 14.2 XML_PENDENTE_MAXYS
+
+Usar quando:
+
+- a chave existe na SEFAZ;
+- a chave não existe no relatório MaxysXML importado.
+
+Rótulo sugerido na UI:
+
+- `XML pendente no MaxysXML`
+
+### 14.3 XML_PRESENTE_NAO_ARMAZENADO
+
+Usar quando:
+
+- a chave existe no relatório MaxysXML;
+- o campo `status_xml`, quando disponível, indicar situação diferente de armazenado, disponível ou equivalente positivo.
+
+Rótulo sugerido na UI:
+
+- `Verificar armazenamento`
+
+### 14.4 XML_FORA_DA_SEFAZ_ATUAL
+
+Usar em relatório complementar quando:
+
+- a chave existe no MaxysXML;
+- a chave não existe no snapshot SEFAZ atual.
+
+Rótulo sugerido na UI:
+
+- `Fora da SEFAZ atual`
+
+### 14.5 NAO_ANALISADO
+
+Usar quando:
+
+- nenhum relatório MaxysXML foi importado na sessão atual;
+- a análise MaxysXML está indisponível.
+
+Rótulo sugerido na UI:
+
+- `MaxysXML não importado`
+
+## 15. Relação com status principal da conferência
+
+A situação MaxysXML não altera `status_final`.
+
+Exemplos:
+
+| Status principal SEFAZ x RFT006 | Situação MaxysXML | Interpretação |
+|---|---|---|
+| OK | XML_PRESENTE | Nota escriturada e XML encontrado |
+| OK | XML_PENDENTE_MAXYS | Nota escriturada, mas XML não localizado no MaxysXML |
+| FALTANTE | XML_PRESENTE | XML existe, mas nota não foi encontrada no RFT006 |
+| FALTANTE | XML_PENDENTE_MAXYS | Falta escrituração e falta XML no MaxysXML |
+| IRREGULAR | XML_PRESENTE | Escrituração irregular, XML localizado |
+| DESCONSIDERADA | XML_PRESENTE | Nota desconsiderada operacionalmente, XML localizado |
+
+Regra obrigatória:
+
+- Não criar status público `XML PENDENTE`.
+- Não substituir `FALTANTE` por situação MaxysXML.
+- Não alterar a matriz do PRD 05.
+
+## 16. Importação no wizard
+
+O modal de importação deve evoluir para quatro etapas:
+
+1. **SEFAZ**
+   - Obrigatório.
+   - Relatório baixado da SEFAZ.
+
+2. **RFT006 / ERP**
+   - Obrigatório para conferência de escrituração.
+   - Relatório exportado do ERP/Maxicon.
+
+3. **MaxysXML**
+   - Opcional.
+   - Relatório exportado da plataforma MaxysXML.
+   - Texto sugerido: `Importe este arquivo apenas se quiser identificar quais XMLs estão pendentes no MaxysXML.`
+
+4. **Conferir**
+   - Executar conferência SEFAZ x RFT006.
+   - Executar análise auxiliar SEFAZ x MaxysXML quando o arquivo opcional existir.
+
+A etapa MaxysXML deve ter ação clara para pular:
+
+- `Pular MaxysXML`
+- `Conferir sem MaxysXML`
+
+## 17. Interface de resultado
+
+A UI deve exibir a análise MaxysXML em área separada da conferência principal.
+
+Modelo recomendado:
+
+- Aba `Conferência ERP`
+- Aba `XMLs MaxysXML`
+
+Na aba `XMLs MaxysXML`, exibir:
+
+Cards mínimos:
+
+- `Total SEFAZ`
+- `XMLs encontrados`
+- `XMLs pendentes`
+- `Verificar armazenamento`
+- `Fora da SEFAZ atual`
+
+Tabela mínima:
+
+| Coluna | Descrição |
+|---|---|
+| Destinatário | Destinatário SEFAZ da nota |
+| Emissão | Data de emissão SEFAZ |
+| Número | Número da nota |
+| Série | Série da nota |
+| Chave de acesso | Chave NF-e |
+| Emitente | Emitente da SEFAZ |
+| Situação MaxysXML | Resultado auxiliar |
+| Status XML | Status vindo do MaxysXML quando houver |
+| Status ERP MaxysXML | Informativo quando houver |
+| Ações | Copiar chave / Ver detalhes |
+
+Filtros mínimos:
+
+- Situação MaxysXML
+- Destinatário
+- Período
+- Busca por chave
+- Emitente
+
+## 18. Drawer da nota
+
+Quando houver análise MaxysXML, o drawer da nota deve exibir bloco separado:
+
+`MaxysXML`
+
+Campos sugeridos:
+
+- XML encontrado no MaxysXML: Sim/Não
+- Situação MaxysXML
+- Status XML
+- Status ERP MaxysXML
+- Status SEFAZ MaxysXML
+- Número do documento no MaxysXML
+- Série no MaxysXML
+- Emitente no MaxysXML
+- Botão copiar chave de acesso
+
+Regra obrigatória:
+
+- O bloco MaxysXML deve ser informativo.
+- O bloco MaxysXML não deve alterar o status principal da nota.
+
+## 19. Exportação operacional
+
+A aba `XMLs MaxysXML` deve permitir exportar:
+
+- lista de XMLs pendentes;
+- lista de XMLs encontrados;
+- lista de XMLs para verificar armazenamento;
+- lista completa da análise MaxysXML.
+
+Formatos sugeridos:
+
+- `.xlsx`
+- `.csv`, se já houver padrão existente no projeto.
+
+Campos mínimos da exportação:
+
+- destinatario_nome
+- destinatario_cnpj_cpf
+- data_emissao
+- numero_nota_fiscal
+- serie_nota_fiscal
+- chave_nfe
+- emitente_cnpj_cpf
+- emitente_razao_social
+- situacao_xml_maxys
+- status_xml_maxys
+- status_erp_maxys
+- status_sefaz_maxys
+
+## 20. Logs operacionais
+
+A importação MaxysXML deve gerar logs conforme PRD 06.
+
+Erros bloqueantes:
+
+- arquivo em formato inválido;
+- arquivo vazio;
+- ausência de coluna mapeável para chave de acesso;
+- nenhuma chave válida encontrada.
+
+Avisos:
+
+- chave com tamanho diferente de 44 dígitos;
+- linha sem chave;
+- colunas opcionais ausentes;
+- chaves duplicadas no relatório MaxysXML;
+- status XML desconhecido;
+- chave MaxysXML fora do snapshot SEFAZ atual.
+
+Mensagens devem ser claras e acionáveis.
+
+## 21. Duplicidade de chaves no MaxysXML
+
+Se houver mais de uma linha MaxysXML para a mesma chave:
+
+- não bloquear a importação;
+- consolidar por chave;
+- preservar todas as linhas no payload;
+- marcar aviso operacional de duplicidade;
+- considerar a chave como encontrada.
+
+Quando houver múltiplos `status_xml` para a mesma chave, usar a regra mais conservadora:
+
+1. Se algum registro indicar XML armazenado/disponível, considerar `XML_PRESENTE`.
+2. Se nenhum registro indicar armazenado/disponível, considerar `XML_PRESENTE_NAO_ARMAZENADO`.
+3. Registrar aviso de duplicidade para conferência operacional.
+
+## 22. Snapshot MaxysXML
+
+A importação MaxysXML deve substituir integralmente a base MaxysXML vigente no estado local.
+
+Regras:
+
+- importar novo relatório MaxysXML substitui o snapshot MaxysXML anterior;
+- limpar análise deve remover também o snapshot MaxysXML;
+- SEFAZ continua controlando o universo principal;
+- MaxysXML não remove notas SEFAZ;
+- MaxysXML não remove registros RFT006;
+- MaxysXML não altera exceções.
+
+## 23. Persistência local
+
+Na V1:
+
+- o snapshot MaxysXML é local;
+- pode ficar em memória ou armazenamento local do navegador, conforme estratégia já adotada para os demais relatórios;
+- não há persistência corporativa;
+- não há backend;
+- não há banco de dados;
+- não há auditoria por usuário.
+
+## 24. Performance
+
+A comparação deve ser feita com indexação por chave.
+
+Regra recomendada:
+
+1. Normalizar todas as chaves MaxysXML.
+2. Criar `Map<string, RegistroMaxysXML[]>`.
+3. Percorrer notas SEFAZ uma única vez.
+4. Consultar a chave no mapa.
+
+Evitar laços quadráticos entre SEFAZ e MaxysXML.
+
+## 25. Critérios de aceite
+
+### 25.1 Importação
+
+- O usuário consegue importar SEFAZ, RFT006 e opcionalmente MaxysXML.
+- O usuário consegue pular a etapa MaxysXML.
+- Arquivo MaxysXML sem chave gera erro bloqueante.
+- Arquivo MaxysXML com colunas opcionais ausentes não bloqueia a importação.
+- Chaves inválidas geram aviso e não quebram o processamento.
+
+### 25.2 Comparação
+
+- Chave existente na SEFAZ e no MaxysXML gera `XML_PRESENTE`.
+- Chave existente na SEFAZ e ausente no MaxysXML gera `XML_PENDENTE_MAXYS`.
+- Chave existente no MaxysXML e ausente na SEFAZ atual aparece como `XML_FORA_DA_SEFAZ_ATUAL`.
+- Duplicidade de chave MaxysXML não duplica nota SEFAZ na tabela.
+- Resultado não depende da ordem das linhas do arquivo.
+
+### 25.3 UI
+
+- A conferência principal continua mostrando apenas status oficiais.
+- A análise MaxysXML aparece em aba, card ou bloco separado.
+- O drawer exibe bloco MaxysXML quando houver análise.
+- A tabela permite copiar chave de acesso.
+- A lista de XMLs pendentes pode ser exportada.
+
+### 25.4 Não regressão
+
+- O matching SEFAZ x RFT006 continua inalterado.
+- O status `FALTANTE` continua significando ausência no RFT006 conforme PRD 05.
+- Exceções continuam tendo prioridade sobre a classificação principal.
+- A ausência do relatório MaxysXML não impede a conferência normal.
+
+## 26. Fora de escopo
+
+- Baixar XML automaticamente.
+- Integrar com e-mail.
+- Integrar com API da SEFAZ.
+- Integrar diretamente com banco do MaxysXML.
+- Criar agendamento automático.
+- Criar novo status público.
+- Alterar matriz de matching SEFAZ x RFT006.
+- Criar backend ou banco na V1.
+- Usar IA ou heurística para localizar notas.
+
+## 27. Impacto esperado nos PRDs existentes
+
+### PRD 02 — Importação de Arquivos
+
+Adicionar:
+
+- novo tipo opcional de entrada: MaxysXML;
+- parsing local `.xls` e `.xlsx`;
+- snapshot local MaxysXML;
+- erros e avisos de importação MaxysXML.
+
+### PRD 03 — Interface e UX
+
+Adicionar:
+
+- etapa opcional MaxysXML no wizard;
+- aba ou painel `XMLs MaxysXML`;
+- cards de resumo da análise XML;
+- bloco MaxysXML no drawer;
+- exportação de XMLs pendentes.
+
+### PRD 06 — Logs Operacionais
+
+Adicionar:
+
+- códigos de erro e aviso específicos para MaxysXML.
+
+### PRD 07 — Contrato de Dados
+
+Adicionar:
+
+- entidade `RegistroMaxysXML`;
+- snapshot MaxysXML;
+- campos auxiliares de resultado MaxysXML.
+
+### PRD 05 — Motor de Conferência
+
+Não alterar matriz principal.
+
+Se necessário, adicionar apenas observação:
+
+- A análise MaxysXML é auxiliar e não altera `status_final`, `resultado_matching` ou `motivo_divergencia`.
+
+## 28. Decisão funcional
+
+A melhoria deve ser implementada como análise complementar.
+
+O ConsultaSefaz passa a responder duas perguntas operacionais distintas:
+
+1. **Conferência ERP/RFT006**
+   - Quais notas da SEFAZ estão ou não escrituradas no ERP?
+
+2. **Conferência MaxysXML**
+   - Quais notas da SEFAZ possuem ou não XML localizado no MaxysXML?
+
+A primeira pergunta continua definindo o status principal da conferência.
+
+A segunda pergunta gera apenas indicadores auxiliares e listas operacionais para ação do usuário.
