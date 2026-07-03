@@ -13,6 +13,7 @@ import type { SortDirection, SortKey, SortState } from "@/pages/views/Conferenci
 import { DestinatariosView } from "@/pages/views/DestinatariosView";
 import { ExcecoesView } from "@/pages/views/ExcecoesView";
 import { LogsView } from "@/pages/views/LogsView";
+import { MaxysXMLView } from "@/pages/views/MaxysXMLView";
 import { APP_VERSION } from "@/config/appVersion";
 import { getNatureza } from "@/lib/conferencia/helpers";
 import { exportarExcelConferencia } from "@/lib/exporters/excelExporter";
@@ -31,11 +32,15 @@ import {
 
 const DEFAULT_PAGE_SIZE = 30;
 const PAGE_SIZE_OPTIONS = [15, 30, 50, 100, 200, 500] as const;
-type ViewKey = "conferencia" | "destinatarios" | "excecoes" | "logs";
+type ViewKey = "conferencia" | "maxysxml" | "destinatarios" | "excecoes" | "logs";
 const VIEW_HEADER: Record<ViewKey, { title: string; subtitle: string }> = {
   conferencia: {
     title: "Conferência",
     subtitle: "Conferência Inteligente de Notas Fiscais de Entrada",
+  },
+  maxysxml: {
+    title: "XMLs MaxysXML",
+    subtitle: "Análise complementar SEFAZ x MaxysXML por chave de acesso",
   },
   destinatarios: {
     title: "Destinatários",
@@ -52,7 +57,7 @@ const VIEW_HEADER: Record<ViewKey, { title: string; subtitle: string }> = {
 };
 
 const Index = () => {
-  const { dataset, notas, erp, empresas, excecoes, logs, clearAnalysisData, analysisSnapshotRestored } = useStore();
+  const { dataset, notas, erp, maxysxml, empresas, excecoes, logs, clearAnalysisData, analysisSnapshotRestored } = useStore();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -149,8 +154,8 @@ const Index = () => {
   }, [sidebarCollapsed]);
   const errCount = logs.filter((l) => l.nivel === "erro").length;
   const hasAnalysisData = useMemo(() => {
-    return dataset.length > 0 || notas.length > 0 || erp.length > 0 || logs.length > 0;
-  }, [dataset.length, notas.length, erp.length, logs.length]);
+    return dataset.length > 0 || notas.length > 0 || erp.length > 0 || maxysxml.length > 0 || logs.length > 0;
+  }, [dataset.length, notas.length, erp.length, maxysxml.length, logs.length]);
 
   const warnCount = logs.filter((l) => l.nivel === "aviso").length;
 
@@ -208,6 +213,7 @@ const Index = () => {
           <nav className={`space-y-1 text-sm w-full ${sidebarCollapsed ? "flex flex-col items-center gap-2 space-y-0" : ""}`}>
             {/* activeView é navegação transitória; evolução futura pode migrar para roteamento real. */}
             <NavItem label="Conferência" icon={<ShieldCheck className="h-4 w-4" />} collapsed={sidebarCollapsed} active={activeView === "conferencia"} onClick={() => setActiveView("conferencia")} />
+            <NavItem label="XMLs MaxysXML" icon={<FileSpreadsheet className="h-4 w-4" />} collapsed={sidebarCollapsed} active={activeView === "maxysxml"} onClick={() => setActiveView("maxysxml")} />
             <NavItem label="Destinatários" icon={<Building2 className="h-4 w-4" />} collapsed={sidebarCollapsed} active={activeView === "destinatarios"} onClick={() => setActiveView("destinatarios")} />
             <NavItem label="Exceções" icon={<Ban className="h-4 w-4" />} collapsed={sidebarCollapsed} active={activeView === "excecoes"} onClick={() => setActiveView("excecoes")} />
             <NavItem label="Logs" icon={<ClipboardList className="h-4 w-4" />} collapsed={sidebarCollapsed} active={activeView === "logs"} onClick={() => setActiveView("logs")} />
@@ -348,6 +354,7 @@ const Index = () => {
                 setSelected={setSelected}
               />
             )}
+            {activeView === "maxysxml" && <MaxysXMLView onSelect={setSelected} />}
             {activeView === "destinatarios" && <DestinatariosView />}
             {activeView === "excecoes" && (
               <ExcecoesView

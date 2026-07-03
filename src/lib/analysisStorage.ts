@@ -1,4 +1,4 @@
-import type { Empresa, LogOperacional, NotaSefaz, RegistroErp } from "@/lib/types";
+import type { Empresa, LogOperacional, NotaSefaz, RegistroErp, RegistroMaxysXML } from "@/lib/types";
 
 export const ANALYSIS_SNAPSHOT_SCHEMA_VERSION = 1;
 export const ANALYSIS_SNAPSHOT_STORAGE_KEY = "consultasefaz:analysis-snapshot";
@@ -9,6 +9,7 @@ export interface AnalysisSnapshot {
   empresas: Empresa[];
   notas: NotaSefaz[];
   erp: RegistroErp[];
+  maxysxml?: RegistroMaxysXML[];
   logs: LogOperacional[];
 }
 
@@ -23,6 +24,7 @@ export function isValidAnalysisSnapshot(value: unknown): value is AnalysisSnapsh
   return Array.isArray(value.empresas)
     && Array.isArray(value.notas)
     && Array.isArray(value.erp)
+    && (value.maxysxml === undefined || Array.isArray(value.maxysxml))
     && Array.isArray(value.logs);
 }
 
@@ -66,6 +68,7 @@ export function saveAnalysisSnapshot(snapshot: Omit<AnalysisSnapshot, "schemaVer
         empresas: snapshot.empresas,
         notas: snapshot.notas,
         erp: snapshot.erp,
+        maxysxml: snapshot.maxysxml || [],
         logs: snapshot.logs,
       })
     );

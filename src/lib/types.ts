@@ -46,6 +46,46 @@ export interface NotaSefaz {
   importacao_id: string;
 }
 
+export interface RegistroMaxysXML {
+  id: string;
+  chave_acesso: string;
+  arquivo_nome: string;
+  importacao_id: string;
+  payload_completo_maxysxml: Record<string, any>;
+  numero_nota_fiscal?: string;
+  serie_nota_fiscal?: string;
+  data_emissao?: string;
+  status_xml?: string;
+  status_erp_maxys?: string;
+  status_sefaz_maxys?: string;
+  tipo_faturamento?: string;
+  tipo_destinatario_maxys?: string;
+  emitente_cnpj_cpf?: string;
+  emitente_razao_social?: string;
+  maxys_codigo_empresa?: string;
+  maxys_empresa_nome?: string;
+  total_icms?: number | string;
+}
+
+export type SituacaoXmlMaxys =
+  | "XML_PRESENTE"
+  | "XML_PENDENTE_MAXYS"
+  | "XML_PRESENTE_NAO_ARMAZENADO"
+  | "XML_FORA_DA_SEFAZ_ATUAL"
+  | "NAO_ANALISADO";
+
+export interface ResultadoMaxysXMLPorNota {
+  chave_nfe: string;
+  xml_existe_no_maxysxml: boolean;
+  situacao_xml_maxys: SituacaoXmlMaxys;
+  status_xml_maxys?: string;
+  status_erp_maxys?: string;
+  status_sefaz_maxys?: string;
+  registro_maxysxml_encontrado?: RegistroMaxysXML;
+  payload_maxysxml_drawer: Record<string, any>[];
+  linha_conferencia?: DatasetLinha;
+}
+
 export interface RegistroErp {
   id: string;
   chave_acesso: string;
@@ -98,5 +138,6 @@ export interface DatasetLinha {
   data_emissao: string;
   payload_resumo_tabela: Record<string, any>;
   payload_completo_drawer: Record<string, any>;
+  maxysxml?: ResultadoMaxysXMLPorNota;
   referencia_execucao: string;
 }

@@ -7,8 +7,11 @@ import type {
   LogOperacional,
   NotaSefaz,
   RegistroErp,
+  RegistroMaxysXML,
+  ResultadoMaxysXMLPorNota,
 } from "@/lib/types";
 import { rodarMotor, normalizeChave, normalizeCnpj } from "@/lib/engine";
+import { analisarMaxysXML } from "@/lib/maxysxml";
 import { findDestinatarioConhecidoByDocumento } from "@/config/destinatariosConhecidos";
 import { clearAnalysisSnapshot, loadAnalysisSnapshot, saveAnalysisSnapshot } from "@/lib/analysisStorage";
 
@@ -18,11 +21,11 @@ const MAX_LOGS = 80;
 const MAX_LOG_TEXT = 500;
 let localPersistenceWarningShown = false;
 
-function hasAnalysisPayload(state: Pick<State, "notas" | "erp" | "dataset">) {
-  return state.notas.length > 0 || state.erp.length > 0 || state.dataset.length > 0;
+function hasAnalysisPayload(state: Pick<State, "notas" | "erp" | "dataset" | "maxysxml">) {
+  return state.notas.length > 0 || state.erp.length > 0 || state.dataset.length > 0 || state.maxysxml.length > 0;
 }
 
-function persistAnalysisSnapshot(state: Pick<State, "empresas" | "notas" | "erp" | "logs" | "dataset">) {
+function persistAnalysisSnapshot(state: Pick<State, "empresas" | "notas" | "erp" | "maxysxml" | "logs" | "dataset">) {
   // Snapshot operacional separado das exceções permanentes: Limpar análise apaga só estes dados.
   if (!hasAnalysisPayload(state)) {
     clearAnalysisSnapshot();
@@ -33,6 +36,7 @@ function persistAnalysisSnapshot(state: Pick<State, "empresas" | "notas" | "erp"
     empresas: state.empresas,
     notas: state.notas,
     erp: state.erp,
+    maxysxml: state.maxysxml,
     logs: state.logs.slice(0, MAX_LOGS),
   });
 
@@ -81,6 +85,8 @@ interface State {
   empresas: Empresa[];
   notas: NotaSefaz[];
   erp: RegistroErp[];
+  maxysxml: RegistroMaxysXML[];
+  maxysxmlAnalise: ResultadoMaxysXMLPorNota[];
   excecoes: Excecao[];
   logs: LogOperacional[];
   dataset: DatasetLinha[];
@@ -93,6 +99,7 @@ interface State {
 
   ingestSefaz: (notas: Omit<NotaSefaz, "id" | "importacao_id">[], importacao_id: string, arquivo?: string) => void;
   ingestErp: (rows: Omit<RegistroErp, "id" | "importacao_id">[], importacao_id: string, arquivo?: string) => void;
+  ingestMaxysXML: (rows: Omit<RegistroMaxysXML, "id" | "importacao_id" | "arquivo_nome">[], importacao_id: string, arquivo?: string) => void;
 
   addExcecao: (e: Omit<Excecao, "id" | "data_registro" | "ativa" | "tipo_excecao">) => boolean;
   reverterExcecao: (id: string) => void;
@@ -111,6 +118,8 @@ export const useStore = create<State>()(
       empresas: [],
       notas: [],
       erp: [],
+      maxysxml: [],
+      maxysxmlAnalise: [],
       excecoes: [],
       logs: [],
       dataset: [],
@@ -209,6 +218,35 @@ export const useStore = create<State>()(
         });
       },
 
+
+      ingestMaxysXML: (rows, importacao_id, arquivo) => {
+        const novos: RegistroMaxysXML[] = rows.map((r) => ({ ...r, id: uid(), importacao_id, arquivo_nome: arquivo || "MaxysXML" }));
+        set({ maxysxml: novos, analysisSnapshotRestored: false });
+        const duplicadas = new Map<string, number>();
+        for (const registro of novos) duplicadas.set(registro.chave_acesso, (duplicadas.get(registro.chave_acesso) ?? 0) + 1);
+        const totalDuplicadas = [...duplicadas.values()].filter((count) => count > 1).length;
+        if (totalDuplicadas > 0) {
+          get().addLog({
+            tipo: "importacao",
+            nivel: "aviso",
+            arquivo_nome: arquivo,
+            codigo_evento: "MAXYSXML_DUPLICADAS",
+            mensagem_usuario: `${totalDuplicadas} chave(s) duplicada(s) no MaxysXML foram consolidadas por chave.`,
+          });
+        }
+        get().rerun();
+        const foraSefaz = get().maxysxmlAnalise.filter((item) => item.situacao_xml_maxys === "XML_FORA_DA_SEFAZ_ATUAL").length;
+        if (foraSefaz > 0) {
+          get().addLog({
+            tipo: "processamento",
+            nivel: "aviso",
+            arquivo_nome: arquivo,
+            codigo_evento: "MAXYSXML_FORA_SEFAZ",
+            mensagem_usuario: `${foraSefaz} chave(s) MaxysXML não existem no snapshot SEFAZ atual.`,
+          });
+        }
+      },
+
       addExcecao: (e) => {
         const chaveN = normalizeChave(e.chave_nfe);
         const dup = get().excecoes.find(
@@ -262,16 +300,19 @@ export const useStore = create<State>()(
       },
 
       rerun: () => {
-        const { notas, erp, excecoes, empresas } = get();
+        const { notas, erp, maxysxml, excecoes, empresas } = get();
         const ref = new Date().toISOString();
-        const dataset = rodarMotor({
+        const datasetBase = rodarMotor({
           notas,
           erp,
           excecoes,
           empresas,
           referencia_execucao: ref,
         });
-        set({ dataset, ultimaExecucao: ref });
+        const maxysResultados = analisarMaxysXML(datasetBase, maxysxml);
+        const maxysByChave = new Map(maxysResultados.map((item) => [item.chave_nfe, item]));
+        const dataset = datasetBase.map((linha) => ({ ...linha, maxysxml: maxysByChave.get(linha.chave_nfe) }));
+        set({ dataset, maxysxmlAnalise: maxysResultados, ultimaExecucao: ref });
         if (!persistAnalysisSnapshot(get())) appendLocalPersistenceWarning(set);
       },
       // Limpa somente o snapshot/análise atual; exceções locais são preservadas por regra de negócio.
@@ -280,6 +321,8 @@ export const useStore = create<State>()(
           empresas: [],
           notas: [],
           erp: [],
+          maxysxml: [],
+          maxysxmlAnalise: [],
           logs: [],
           dataset: [],
           ultimaExecucao: undefined,
@@ -293,6 +336,8 @@ export const useStore = create<State>()(
           empresas: [],
           notas: [],
           erp: [],
+          maxysxml: [],
+          maxysxmlAnalise: [],
           excecoes: [],
           logs: [],
           dataset: [],
@@ -333,18 +378,24 @@ export const useStore = create<State>()(
           codigo_evento: "ANALISE_LOCAL_RESTAURADA",
           mensagem_usuario: "Última análise carregada deste navegador.",
         };
-        const dataset = rodarMotor({
+        const datasetBase = rodarMotor({
           notas: snapshot.notas,
           erp: snapshot.erp,
           excecoes: state.excecoes,
           empresas: snapshot.empresas,
           referencia_execucao: ref,
         });
+        const maxysResultados = analisarMaxysXML(datasetBase, snapshot.maxysxml || []);
+        const maxysByChave = new Map(maxysResultados.map((item) => [item.chave_nfe, item]));
+        const dataset = datasetBase.map((linha) => ({ ...linha, maxysxml: maxysByChave.get(linha.chave_nfe) }));
+
 
         useStore.setState({
           empresas: snapshot.empresas,
           notas: snapshot.notas,
           erp: snapshot.erp,
+          maxysxml: snapshot.maxysxml || [],
+          maxysxmlAnalise: maxysResultados,
           logs: [restoreLog, ...restoredLogs].slice(0, MAX_LOGS),
           dataset,
           ultimaExecucao: ref,
