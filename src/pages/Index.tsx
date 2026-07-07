@@ -15,7 +15,7 @@ import { ExcecoesView } from "@/pages/views/ExcecoesView";
 import { LogsView } from "@/pages/views/LogsView";
 import { MaxysXMLView } from "@/pages/views/MaxysXMLView";
 import { APP_VERSION } from "@/config/appVersion";
-import { getNatureza } from "@/lib/conferencia/helpers";
+import { getConferenciaRowKey, getNatureza } from "@/lib/conferencia/helpers";
 import { exportarExcelConferencia } from "@/lib/exporters/excelExporter";
 import { exportarPdfConferencia } from "@/lib/exporters/pdfExporter";
 import {
@@ -84,6 +84,8 @@ const Index = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>(null);
+  const [hiddenRowKeys, setHiddenRowKeys] = useState<Set<string>>(() => new Set());
+  const [showHiddenRows, setShowHiddenRows] = useState(false);
   const headerContent = VIEW_HEADER[activeView];
 
   // Base sem filtro de status para manter contadores dinâmicos dos botões rápidos
@@ -135,11 +137,20 @@ const Index = () => {
     };
   }, [filteredWithoutStatus]);
 
+  const hiddenFilteredCount = useMemo(() => {
+    return filtered.filter((linha) => hiddenRowKeys.has(getConferenciaRowKey(linha))).length;
+  }, [filtered, hiddenRowKeys]);
+
+  const visibleFiltered = useMemo(() => {
+    if (showHiddenRows) return filtered;
+    return filtered.filter((linha) => !hiddenRowKeys.has(getConferenciaRowKey(linha)));
+  }, [filtered, hiddenRowKeys, showHiddenRows]);
+
   const sortedFiltered = useMemo(() => {
-    if (!sort) return filtered;
+    if (!sort) return visibleFiltered;
     // Ordena sempre em cópia para preservar a ordem original do dataset filtrado quando a ordenação é removida.
-    return [...filtered].sort((a, b) => compareConferenciaRows(a, b, sort.key, sort.direction));
-  }, [filtered, sort]);
+    return [...visibleFiltered].sort((a, b) => compareConferenciaRows(a, b, sort.key, sort.direction));
+  }, [visibleFiltered, sort]);
 
   const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / pageSize));
   const pageData = sortedFiltered.slice((page - 1) * pageSize, page * pageSize);
@@ -170,6 +181,26 @@ const Index = () => {
     setSituacaoXml("all");
     setDataIni("");
     setDataFim("");
+    setHiddenRowKeys(new Set());
+    setShowHiddenRows(false);
+  };
+
+  const hideConferenciaRow = (linha: DatasetLinha) => {
+    // Ocultação temporária: mantém a alteração restrita ao estado local da tela, sem tocar status, exceções ou payloads.
+    setHiddenRowKeys((current) => new Set(current).add(getConferenciaRowKey(linha)));
+  };
+
+  const restoreConferenciaRow = (linha: DatasetLinha) => {
+    setHiddenRowKeys((current) => {
+      const next = new Set(current);
+      next.delete(getConferenciaRowKey(linha));
+      return next;
+    });
+  };
+
+  const restoreHiddenRows = () => {
+    setHiddenRowKeys(new Set());
+    setShowHiddenRows(false);
   };
 
   const handleClearAnalysis = () => {
@@ -282,12 +313,12 @@ const Index = () => {
                     size="sm"
                     disabled={!hasAnalysisData}
                     onClick={() => {
-                      if (filtered.length === 0) {
+                      if (visibleFiltered.length === 0) {
                         toast({ title: "Não há dados de conferência para exportar." });
                         return;
                       }
                       try {
-                        exportarExcelConferencia(filtered, stats, { empresaId, status, dataIni, dataFim, chave, empresas });
+                        exportarExcelConferencia(visibleFiltered, stats, { empresaId, status, dataIni, dataFim, chave, empresas });
                         toast({ title: "Relatório Excel gerado." });
                       } catch (e) {
                         console.error(e);
@@ -301,12 +332,12 @@ const Index = () => {
                     size="sm"
                     disabled={!hasAnalysisData}
                     onClick={() => {
-                      if (filtered.length === 0) {
+                      if (visibleFiltered.length === 0) {
                         toast({ title: "Não há dados de conferência para exportar." });
                         return;
                       }
                       try {
-                        exportarPdfConferencia(filtered, stats, { empresaId, status, dataIni, dataFim, chave, empresas });
+                        exportarPdfConferencia(visibleFiltered, stats, { empresaId, status, dataIni, dataFim, chave, empresas });
                         toast({ title: "Relatório PDF gerado." });
                       } catch (e) {
                         console.error(e);
@@ -342,8 +373,15 @@ const Index = () => {
                 chave={chave}
                 setChave={setChave}
                 clearFilters={clearFilters}
+                hiddenRowKeys={hiddenRowKeys}
+                hiddenFilteredCount={hiddenFilteredCount}
+                showHiddenRows={showHiddenRows}
+                setShowHiddenRows={setShowHiddenRows}
+                hideRow={hideConferenciaRow}
+                restoreRow={restoreConferenciaRow}
+                restoreHiddenRows={restoreHiddenRows}
                 pageData={pageData}
-                filteredLength={filtered.length}
+                filteredLength={visibleFiltered.length}
                 pageSize={pageSize}
                 pageSizeOptions={PAGE_SIZE_OPTIONS}
                 setPageSize={(value) => {

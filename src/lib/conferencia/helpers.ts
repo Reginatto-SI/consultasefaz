@@ -13,3 +13,7 @@ export function getNatureza(l: DatasetLinha): string {
     ?? l.payload_completo_drawer?.operacao
     ?? "";
 }
+
+export function getConferenciaRowKey(linha: Pick<DatasetLinha, "empresa_id" | "chave_nfe">): string {
+  return `${linha.empresa_id}:${linha.chave_nfe}`;
+}
