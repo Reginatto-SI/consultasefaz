@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Copy, Eye, FileSpreadsheet, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Copy, Eye, FileSpreadsheet, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,12 @@ import { toast } from "sonner";
 import { exportarExcelMaxysXML } from "@/lib/exporters/excelExporter";
 
 type ExportMode = "pendentes" | "encontrados" | "armazenamento" | "completa";
+type MaxysSortDirection = "asc" | "desc";
+type MaxysSortKey = "destinatario" | "data_emissao" | "numero" | "serie" | "chave_nfe" | "emitente" | "situacao" | "status_xml" | "status_erp" | "status_sefaz";
+type MaxysSortState = { key: MaxysSortKey; direction: MaxysSortDirection } | null;
+
+const DEFAULT_PAGE_SIZE = 30;
+const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 500] as const;
 
 const SITUACOES: Array<{ value: SituacaoXmlMaxys | "all"; label: string }> = [
   { value: "all", label: "Todas" },
@@ -29,6 +35,9 @@ export function MaxysXMLView({ onSelect }: { onSelect: (linha: DatasetLinha) => 
   const [dataFim, setDataFim] = useState("");
   const [busca, setBusca] = useState("");
   const [emitente, setEmitente] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [sort, setSort] = useState<MaxysSortState>(null);
 
   const filtered = useMemo(() => maxysxmlAnalise.filter((item) => {
     const linha = item.linha_conferencia;
@@ -50,8 +59,36 @@ export function MaxysXMLView({ onSelect }: { onSelect: (linha: DatasetLinha) => 
     fora: maxysxmlAnalise.filter((item) => item.situacao_xml_maxys === "XML_FORA_DA_SEFAZ_ATUAL").length,
   }), [dataset.length, maxysxmlAnalise]);
 
+  const sortedFiltered = useMemo(() => {
+    if (!sort) return filtered;
+    // Ordena apenas a cópia filtrada da análise auxiliar, preservando a fonte MaxysXML e a conferência principal.
+    return [...filtered].sort((a, b) => compareMaxysRows(a, b, sort.key, sort.direction));
+  }, [filtered, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / pageSize));
+  const pageData = sortedFiltered.slice((page - 1) * pageSize, page * pageSize);
+
+  const updatePageSize = (value: number) => {
+    setPageSize(value);
+    setPage(1);
+  };
+
+  const updateSort = (value: MaxysSortState) => {
+    setSort(value);
+    setPage(1);
+  };
+
+  useEffect(() => {
+    setPage(1);
+  }, [situacao, empresaId, dataIni, dataFim, busca, emitente]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   const exportMode = (mode: ExportMode) => {
-    const source = mode === "completa" ? maxysxmlAnalise : maxysxmlAnalise.filter((item) => {
+    // Exportação segue os filtros atuais da aba MaxysXML, sem limitar à página visível.
+    const source = mode === "completa" ? filtered : filtered.filter((item) => {
       const s = item.situacao_xml_maxys;
       if (mode === "pendentes") return s === "XML_PENDENTE_MAXYS";
       if (mode === "encontrados") return s === "XML_PRESENTE";
@@ -93,10 +130,27 @@ export function MaxysXMLView({ onSelect }: { onSelect: (linha: DatasetLinha) => 
       </Card>
 
       <Card className="overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border text-sm text-muted-foreground">
+          Exibindo <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span> registros após filtros
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground"><tr>{["Destinatário", "Emissão", "Número", "Série", "Chave de acesso", "Emitente", "Situação MaxysXML", "Status XML", "Status ERP MaxysXML", "Ações"].map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr></thead>
-            <tbody>{filtered.map((item) => {
+            <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <SortableHeader label="Destinatário" sortKey="destinatario" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Emissão" sortKey="data_emissao" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Número" sortKey="numero" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Série" sortKey="serie" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Chave de acesso" sortKey="chave_nfe" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Emitente" sortKey="emitente" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Situação MaxysXML" sortKey="situacao" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Status XML" sortKey="status_xml" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Status ERP MaxysXML" sortKey="status_erp" sort={sort} onSort={updateSort} />
+                <SortableHeader label="Status SEFAZ MaxysXML" sortKey="status_sefaz" sort={sort} onSort={updateSort} />
+                <th className="px-3 py-2.5 text-left font-medium">Ações</th>
+              </tr>
+            </thead>
+            <tbody>{pageData.map((item) => {
               const linha = item.linha_conferencia;
               return <tr key={`${item.chave_nfe}-${item.situacao_xml_maxys}`} className="border-t">
                 <td className="px-3 py-2">{getDestinatario(item)}</td>
@@ -108,14 +162,123 @@ export function MaxysXMLView({ onSelect }: { onSelect: (linha: DatasetLinha) => 
                 <td className="px-3 py-2">{labelSituacao(item.situacao_xml_maxys)}</td>
                 <td className="px-3 py-2">{item.status_xml_maxys ?? "—"}</td>
                 <td className="px-3 py-2">{item.status_erp_maxys ?? "—"}</td>
+                <td className="px-3 py-2">{item.status_sefaz_maxys ?? item.registro_maxysxml_encontrado?.status_sefaz_maxys ?? "—"}</td>
                 <td className="px-3 py-2"><div className="flex gap-1"><Button size="icon" variant="ghost" onClick={() => navigator.clipboard.writeText(item.chave_nfe)}><Copy className="h-4 w-4" /></Button>{linha && <Button size="icon" variant="ghost" onClick={() => onSelect(linha)}><Eye className="h-4 w-4" /></Button>}</div></td>
               </tr>;
             })}</tbody>
           </table>
         </div>
+        <div className="flex flex-col gap-3 px-4 py-2.5 border-t border-border text-sm lg:flex-row lg:items-center lg:justify-between">
+          <span className="text-muted-foreground">Página {page} de {totalPages} · {filtered.length} registros</span>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span>Registros por página:</span>
+              <Select value={String(pageSize)} onValueChange={(value) => updatePageSize(Number(value))}>
+                <SelectTrigger className="h-8 w-[88px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{PAGE_SIZE_OPTIONS.map((option) => <SelectItem key={option} value={String(option)}>{option}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>Anterior</Button>
+              {getPaginationItems(page, totalPages).map((item, index) => item === "ellipsis" ? <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">...</span> : <Button key={item} size="sm" variant={item === page ? "default" : "outline"} className="h-8 min-w-8 px-2" onClick={() => setPage(item)}>{item}</Button>)}
+              <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>Próxima</Button>
+            </div>
+          </div>
+        </div>
       </Card>
     </div>
   );
+}
+
+
+type SortableHeaderProps = {
+  label: string;
+  sortKey: MaxysSortKey;
+  sort: MaxysSortState;
+  onSort: (value: MaxysSortState) => void;
+};
+
+function SortableHeader({ label, sortKey, sort, onSort }: SortableHeaderProps) {
+  const active = sort?.key === sortKey;
+  const nextSort: MaxysSortState = !active ? { key: sortKey, direction: "asc" } : sort.direction === "asc" ? { key: sortKey, direction: "desc" } : null;
+  const Icon = !active ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
+  const ariaSort = active ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
+
+  return (
+    <th className="px-3 py-2.5 text-left font-medium" aria-sort={ariaSort}>
+      <button type="button" onClick={() => onSort(nextSort)} className="inline-flex w-full items-center justify-start gap-1.5 rounded-sm text-inherit transition-colors hover:text-foreground" title={`Ordenar por ${label}`} aria-label={`Ordenar por ${label}`}>
+        <span>{label}</span>
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground/60"}`} />
+      </button>
+    </th>
+  );
+}
+
+function getPaginationItems(currentPage: number, totalPages: number): Array<number | "ellipsis"> {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  const visiblePages = Array.from(pages).filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages).sort((a, b) => a - b);
+
+  return visiblePages.reduce<Array<number | "ellipsis">>((items, pageNumber) => {
+    const previous = items[items.length - 1];
+    if (typeof previous === "number" && pageNumber - previous > 1) items.push("ellipsis");
+    items.push(pageNumber);
+    return items;
+  }, []);
+}
+
+function compareMaxysRows(a: ResultadoMaxysXMLPorNota, b: ResultadoMaxysXMLPorNota, key: MaxysSortKey, direction: MaxysSortDirection) {
+  const modifier = direction === "asc" ? 1 : -1;
+
+  if (key === "data_emissao") return compareNullableNumbers(getTimestampOrdenavel(getDataEmissao(a)), getTimestampOrdenavel(getDataEmissao(b)), modifier);
+  if (key === "numero") return compareNullableNumbers(getNumeroOrdenavel(a), getNumeroOrdenavel(b), modifier);
+
+  return compareText(getTextoOrdenavel(a, key), getTextoOrdenavel(b, key)) * modifier;
+}
+
+function compareNullableNumbers(a: number | null, b: number | null, modifier: 1 | -1) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return (a - b) * modifier;
+}
+
+function compareText(a: string, b: string) {
+  return a.localeCompare(b, "pt-BR", { sensitivity: "base", numeric: true });
+}
+
+function getTextoOrdenavel(item: ResultadoMaxysXMLPorNota, key: MaxysSortKey) {
+  const value = key === "destinatario"
+    ? getDestinatario(item)
+    : key === "serie"
+      ? item.registro_maxysxml_encontrado?.serie_nota_fiscal ?? item.linha_conferencia?.payload_completo_drawer?.serie_nota_fiscal
+      : key === "chave_nfe"
+        ? item.chave_nfe
+        : key === "emitente"
+          ? getEmitente(item)
+          : key === "situacao"
+            ? labelSituacao(item.situacao_xml_maxys)
+            : key === "status_xml"
+              ? item.status_xml_maxys
+              : key === "status_erp"
+                ? item.status_erp_maxys
+                : item.status_sefaz_maxys ?? item.registro_maxysxml_encontrado?.status_sefaz_maxys;
+
+  return String(value ?? "").trim();
+}
+
+function getNumeroOrdenavel(item: ResultadoMaxysXMLPorNota) {
+  const digits = String(getNumero(item)).replace(/\D/g, "");
+  if (!digits) return null;
+  const parsed = Number(digits);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getTimestampOrdenavel(value?: string | null) {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
