@@ -1,12 +1,14 @@
 import * as React from "react";
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getNatureza } from "@/lib/conferencia/helpers";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { getConferenciaRowKey, getNatureza } from "@/lib/conferencia/helpers";
 import { formatFiscalDateBR } from "@/lib/fiscalDate";
 import type { DatasetLinha, Empresa, SituacaoXmlMaxys } from "@/lib/types";
 
@@ -41,6 +43,13 @@ type ConferenciaViewProps = {
   chave: string;
   setChave: (value: string) => void;
   clearFilters: () => void;
+  hiddenRowKeys: Set<string>;
+  hiddenFilteredCount: number;
+  showHiddenRows: boolean;
+  setShowHiddenRows: (value: boolean) => void;
+  hideRow: (linha: DatasetLinha) => void;
+  restoreRow: (linha: DatasetLinha) => void;
+  restoreHiddenRows: () => void;
   pageData: DatasetLinha[];
   filteredLength: number;
   pageSize: number;
@@ -73,6 +82,13 @@ export function ConferenciaView(props: ConferenciaViewProps) {
     chave,
     setChave,
     clearFilters,
+    hiddenRowKeys,
+    hiddenFilteredCount,
+    showHiddenRows,
+    setShowHiddenRows,
+    hideRow,
+    restoreRow,
+    restoreHiddenRows,
     pageData,
     filteredLength,
     pageSize,
@@ -108,7 +124,7 @@ export function ConferenciaView(props: ConferenciaViewProps) {
   return (
     <>
       <Card className="p-3 md:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
           <div>
             <Label className="text-xs">Data inicial</Label>
             <Input type="date" value={dataIni} onChange={(e) => setDataIni(e.target.value)} className="mt-1 h-9" />
@@ -129,6 +145,16 @@ export function ConferenciaView(props: ConferenciaViewProps) {
             <Select value={situacaoXml} onValueChange={(value) => setSituacaoXml(value as SituacaoXmlFiltro)}>
               <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
               <SelectContent>{situacaoXmlOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Mostrar ocultas</Label>
+            <Select value={showHiddenRows ? "sim" : "nao"} onValueChange={(value) => setShowHiddenRows(value === "sim")}>
+              <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nao">Não</SelectItem>
+                <SelectItem value="sim">Sim</SelectItem>
+              </SelectContent>
             </Select>
           </div>
           <Button variant="outline" size="sm" className="h-9" onClick={clearFilters}>Limpar filtros</Button>
@@ -171,10 +197,19 @@ export function ConferenciaView(props: ConferenciaViewProps) {
         </div>
       </Card>
 
+      {hiddenFilteredCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          <span><span className="font-semibold text-foreground tabular-nums">{hiddenFilteredCount}</span> notas ocultas nesta visualização</span>
+          <Button type="button" variant="link" size="sm" className="h-auto px-1 py-0 text-primary" onClick={restoreHiddenRows}>
+            Restaurar ocultas
+          </Button>
+        </div>
+      )}
+
       <Card className="overflow-hidden">
-        {/* Mantém claro o total efetivamente exibido na tabela após aplicação do status e demais filtros. */}
+        {/* Mantém claro o total efetivamente exibido na tabela após aplicação do status e demais filtros, incluindo ocultações temporárias. */}
         <div className="px-4 py-2.5 border-b border-border text-sm text-muted-foreground">
-          Exibindo <span className="font-semibold text-foreground tabular-nums">{filteredLength}</span> registros após filtros
+          Exibindo <span className="font-semibold text-foreground tabular-nums">{filteredLength}</span> registros após filtros{hiddenFilteredCount > 0 && <> · <span className="tabular-nums">{hiddenFilteredCount}</span> {showHiddenRows ? "ocultos exibidos" : "ocultos"}</>}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -207,11 +242,14 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                 // A tabela principal reaproveita a mesma resolução de Natureza usada no PDF para evitar divergência visual entre os dois pontos.
                 // String vazia também deve cair no fallback visual para manter consistência com a coluna e com o PDF.
                 const natureza = getNatureza(l)?.trim() || "—";
+                const rowKey = getConferenciaRowKey(l);
+                const isHidden = hiddenRowKeys.has(rowKey);
                 return (
-                <tr key={l.empresa_id + l.chave_nfe} className="border-t border-border hover:bg-muted/40 cursor-pointer" onClick={() => setSelected(l)}>
+                <tr key={rowKey} className="border-t border-border hover:bg-muted/40 cursor-pointer" onClick={() => setSelected(l)}>
                   <td className="px-3 py-2.5">
                     <div className="flex flex-col gap-1">
                       <StatusBadge status={l.status_final} />
+                      {isHidden && <Badge variant="outline" className="w-fit text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Oculta</Badge>}
                       {renderMotivoIE(l)}
                     </div>
                   </td>
@@ -247,10 +285,23 @@ export function ConferenciaView(props: ConferenciaViewProps) {
                   <td className="px-3 py-2.5 text-right tabular-nums">{formatValorTotal(l)}</td>
                   <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">{l.status_sefaz ?? "—"}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground">{labelSituacaoXmlConferencia(l.maxysxml?.situacao_xml_maxys)}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelected(l); }}>
-                      <Ellipsis className="h-4 w-4" />
-                    </Button>
+                  <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Abrir ações da nota">
+                          <Ellipsis className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={(event) => { event.stopPropagation(); setSelected(l); }}>Visualizar detalhes</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {isHidden ? (
+                          <DropdownMenuItem onClick={(event) => { event.stopPropagation(); restoreRow(l); }}>Restaurar na lista</DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={(event) => { event.stopPropagation(); hideRow(l); }}>Ocultar da lista</DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               )})}
