@@ -5,11 +5,11 @@ import { getNatureza } from "@/lib/conferencia/helpers";
 import {
   ConferenciaStats,
   FiltrosConferencia,
-  dataHojeISO,
   dataHoraGeracao,
   formatStatusSefazVisual,
   formatDataEmissao,
   formatarFiltrosAplicados,
+  buildConferenceExportFileName,
   getDestinatarioNome,
   getEmitenteNome,
   getNumeroNota,
@@ -120,5 +120,12 @@ export function exportarPdfConferencia(
     (doc as any).putTotalPages("{total_pages_count_string}");
   }
 
-  doc.save(`relatorio-conferencia-sefaz-erp-${dataHojeISO()}.pdf`);
+  const filename = buildConferenceExportFileName({
+    registros: linhas,
+    statusSelecionado: filtros.status,
+    destinatarioSelecionado: filtros.empresaId,
+    empresas: filtros.empresas,
+    extensao: "pdf",
+  });
+  doc.save(filename);
 }
