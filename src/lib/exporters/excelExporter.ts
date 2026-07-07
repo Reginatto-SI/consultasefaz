@@ -8,6 +8,7 @@ import {
   dataHoraGeracao,
   formatDataEmissao,
   formatarFiltrosAplicados,
+  buildConferenceExportFileName,
   getDestinatarioNome,
   getEmitenteDoc,
   getEmitenteNome,
@@ -83,7 +84,13 @@ export function exportarExcelConferencia(
   XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
   XLSX.utils.book_append_sheet(wb, wsConf, "Conferência");
 
-  const filename = `relatorio-conferencia-sefaz-erp-${dataHojeISO()}.xlsx`;
+  const filename = buildConferenceExportFileName({
+    registros: linhas,
+    statusSelecionado: filtros.status,
+    destinatarioSelecionado: filtros.empresaId,
+    empresas: filtros.empresas,
+    extensao: "xlsx",
+  });
   XLSX.writeFile(wb, filename);
 }
 
