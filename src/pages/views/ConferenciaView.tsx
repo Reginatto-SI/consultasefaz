@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Building2, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Building2, CircleHelp, Ellipsis, FileText, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -107,18 +107,6 @@ export function ConferenciaView(props: ConferenciaViewProps) {
 
   return (
     <>
-      {/* View separada apenas para organização do front; sem alteração funcional. */}
-      <Card className="p-3 border-warning/30 bg-warning/5 text-sm text-muted-foreground">
-        <div className="flex items-start gap-2">
-          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
-          <p>
-            A análise importada fica apenas na sessão atual do navegador. Ao atualizar ou fechar a página,
-            os relatórios SEFAZ/RFT006 e a conferência podem ser perdidos; exporte o resultado para conservar a análise.
-          </p>
-        </div>
-      </Card>
-
-
       <Card className="p-3 md:p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
           <div>
